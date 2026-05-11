@@ -10,15 +10,15 @@ bord_sido = gpd.read_file(prj_dir + '/' + 'bnd_sido_21_2025_2Q.shp')
 grid_mara = gpd.read_file(prj_dir + '/' + 'grid_마라_1K.shp')
 grid_mama = gpd.read_file(prj_dir + '/' + 'grid_마마_1K.shp')
 stat_mara = pd.read_csv(prj_dir + '/' + '2024년_인구_마라_1K.csv', encoding='CP949',
-                       names=['BASE_YEAR', 'GRID_1K_CD', 'STAT_CD', 'POP'])
+                       names=['BASE_YEAR', 'GRID_CD', 'STAT_CD', 'POP'])
 stat_mama = pd.read_csv(prj_dir + '/' + '2024년_인구_마마_1K.csv', encoding='CP949',
-                       names=['BASE_YEAR', 'GRID_1K_CD', 'STAT_CD', 'POP'])
+                       names=['BASE_YEAR', 'GRID_CD', 'STAT_CD', 'POP'])
 
 grid_merged = pd.concat([grid_mara, grid_mama], ignore_index=True)
 stat_merged = pd.concat([stat_mara, stat_mama], ignore_index=True)
 
-print(grid_merged.info())  # 격자 경계 코드(GRID_1K_CD), 지리정보(geometry)로 구성
-print(stat_merged.info())  # 기준년도(BASE_YEAR), 격자 경계 코드(GRID_1K_CD), 
+print(grid_merged.info())  # 격자 경계 코드(GRID_CD), 지리정보(geometry)로 구성
+print(stat_merged.info())  # 기준년도(BASE_YEAR), 격자 경계 코드(GRID_CD), 
                            # 통계 코드(STAT_CD), 인구수(POP)
 
 # STAT_CD 열에 있는 고유 값 확인
@@ -32,10 +32,10 @@ stat_total = stat_merged[stat_merged['STAT_CD'] == 'to_in_001']
 unique_stat_cd = stat_total['STAT_CD'].unique()
 print(unique_stat_cd)
 
-stat_total = stat_total[['GRID_1K_CD', 'POP']]
+stat_total = stat_total[['GRID_CD', 'POP']]
 
 grid_intersects = grid_merged[grid_merged.geometry.intersects(bord_sido.geometry.union_all())]
-grid_intersects = grid_intersects.merge(stat_total, on='GRID_1K_CD', how='left')
+grid_intersects = grid_intersects.merge(stat_total, on='GRID_CD', how='left')
 
 # 결합 후 통계값이 없는 구간에 NaN이 들어가 있을 수 있음(결측값 확인)
 print(grid_intersects.isna().sum())
