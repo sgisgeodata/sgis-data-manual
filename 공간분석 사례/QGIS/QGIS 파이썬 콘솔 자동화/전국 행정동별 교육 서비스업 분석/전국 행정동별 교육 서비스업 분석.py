@@ -27,7 +27,6 @@ dong_bord = QgsVectorLayer(path_dong_bord, 'bnd_dong_00_2024_2Q', 'ogr')
 
 # 3. 통계 레이어 추가하기(.txt) ---------------------------------------------------
 
-# path_stat_cp = dir_path + '(행정구역)2024년기준_2022년_산업분류별(10차_중분류)_사업체수.txt'
 path_stat_cp = dir_path + '2024년기준_2023년_산업분류별(10차_중분류)_사업체수.csv'
 uri_stat_cp = f'file:///{path_stat_cp}?type=csv&useHeader=no&geomType=none&encoding=UTF-8'
 stat_cp = QgsVectorLayer(uri_stat_cp, '2023년_산업분류별(10차_중분류)_사업체수', 'delimitedtext')
