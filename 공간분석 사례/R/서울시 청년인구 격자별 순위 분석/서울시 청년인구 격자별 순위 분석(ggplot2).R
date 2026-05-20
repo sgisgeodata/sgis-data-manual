@@ -13,6 +13,7 @@ library(ggplot2)      # ggplot2 시각화: ggplot() 등
 prj_dir <- "C:/SGIS/R/서울시 청년인구 격자별 순위 분석"
 
 
+
 # 2. 서울시 경계와 겹치는 격자 경계 만들기
 
 # 서울시 시도 경계
