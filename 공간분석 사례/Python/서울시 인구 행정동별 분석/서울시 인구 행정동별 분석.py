@@ -43,7 +43,7 @@ print(bord_sido.head()) # 병합 데이터 미리보기
 print(bord_sido['POP'].min(), bord_sido['POP'].max())  # 최소값과 최대값 확인하기
 
 bins = [10, 10000, 20000, 30000, 40000, 52000]  # 적절한 구간 지정
-labels = ['10~10,000', '10,000~20,000', '20,000~30,000', '3,0000~40,000', '40,000~52,000']  # 구간의 라벨
+labels = ['10~10,000', '10,000~20,000', '20,000~30,000', '30,000~40,000', '40,000~52,000']  # 구간의 라벨
 
 bord_sido['POP_BINS'] = pd.cut(bord_sido['POP'], bins=bins, labels=labels, right=False)
 print(bord_sido.head())  # 인구 구간(‘POP_BINS’) 컬럼 추가 확인
