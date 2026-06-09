@@ -40,11 +40,7 @@ library(htmltools)
 base_dir <- "C:/Users/user/Desktop/제주"
 
 stay_file <- file.path(base_dir, "체류빈도_2021_합산.csv")
-
-place_file <- file.path(
-  base_dir,
-  "제주관광공사_제주관광정보시스템(VISIT JEJU)_여행장소.csv"
-)
+place_file <- file.path(base_dir, "제주관광공사_제주관광정보시스템(VISIT JEJU)_여행장소.csv")
 
 out_html <- file.path(base_dir, "제주_렌터카_체류빈도_시각화.html")
 out_tif  <- file.path(base_dir, "제주_렌터카_체류빈도_50m.tif")
