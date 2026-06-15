@@ -3,13 +3,3 @@
 
 <img src="program-book-pr.png">
 
-<img src="https://sgisgeodata.github.io/sgis-data-manual/program-book-pr.png">
-
-
-
-
-
-
-
-
-
