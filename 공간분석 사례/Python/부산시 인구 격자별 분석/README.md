@@ -36,4 +36,4 @@
 
 * SGIS : https://sgis.mods.go.kr
 * GitHub : https://github.com/sgisgeodata/sgis-data-manual
-* 분석 내용 : https://sgis.mods.go.kr/view/pss/dataBook03
+* 분석 내용 : https://sgis.mods.go.kr/view/pss/dataBook04
