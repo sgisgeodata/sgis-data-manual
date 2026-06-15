@@ -3,5 +3,9 @@
 
 <img src="https://sgisgeodata.github.io/sgis-data-manual/program\_book\_pr.png">
 
+<img src="program\_book\_pr.png">
+
+
+
 
 
