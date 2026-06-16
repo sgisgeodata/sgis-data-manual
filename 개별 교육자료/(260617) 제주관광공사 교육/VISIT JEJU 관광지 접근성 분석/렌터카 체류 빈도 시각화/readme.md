@@ -128,10 +128,7 @@ VISIT JEJU 여행장소 데이터에서 위도와 경도 정보를 추출했습�
 
 ## 결과물 바로가기
 
-- [렌터카 체류 빈도 시각화 HTML 지도](./시각화%20결과/제주_렌터카_체류빈도_시각화.html)
-
-![제주 렌터카 체류빈도 시각화 결과](images/시각화결과.png)
-
+- [렌터카 체류 빈도 시각화 HTML 지도](https://sgisgeodata.github.io/sgis-data-manual/jeju_rentacar.html)
 
 ---
 
