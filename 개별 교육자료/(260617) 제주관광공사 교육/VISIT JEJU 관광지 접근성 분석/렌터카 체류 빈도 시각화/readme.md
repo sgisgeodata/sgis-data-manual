@@ -149,5 +149,3 @@ VISIT JEJU 여행장소 데이터에서 위도와 경도 정보를 추출했습�
 관광지와 렌터카 체류 빈도 간의 공간적 관계를 함께 살펴볼 수 있습니다.
 
 ---
-
-[시각화 결과 보기](https://sgisgeodata.github.io/sgis-data-manual/jeju_rantacar.html)
