@@ -12,9 +12,7 @@ library(ggplot2)      # ggplot2 시각화: ggplot() 등
 library(reshape2)     # 피벗테이블 만들기 # dcast()
 
 # 프로젝트 폴더 지정
-prj_dir <- "C:/SGIS/R/Proportion of Elderly Population by Grid in Jeju"
-
-base_year <- "2000"
+prj_dir <- "C:/SGIS/R/Proportion of Elderly Population in Jeju by Grid"
 
 
 # 2. 제주시 경계와 겹치는 격자 경계 만들기
@@ -23,15 +21,42 @@ base_year <- "2000"
 file_path <- paste(prj_dir, "bnd_sido_39_2025_2Q.shp", sep="/")
 bord_sido <- st_read(file_path) # 경계 읽어들이기, geometry 컬럼에 공간정보 포함
 
+# 테스트 시작(제주시 시도 경계)
+map <- ggplot() +
+  geom_sf(data=bord_sido, color="black", fill=NA, linewidth=1.0) +
+  theme_bw() + theme(axis.title = element_blank())
+
+map
+# 테스트 끝
+
+
 # 제주시 시군구 경계
 file_path <- paste(prj_dir, "bnd_sigungu_39_2025_2Q.shp", sep="/")
 bord_sigungu <- st_read(file_path)
+
+# 테스트 시작(제주시 시군구 경계)
+map <- ggplot() +
+  geom_sf(data=bord_sigungu, color="black", fill=NA, linewidth=1.0) +
+  theme_bw() + theme(axis.title = element_blank())
+
+map
+# 테스트 끝
+
 
 # 제주시 행정동 경계
 file_path <- paste(prj_dir, "bnd_dong_39_2025_2Q.shp", sep="/")
 bord_dong <- st_read(file_path)
 
-# 제주시 경계와 겹치는 격자 경계 합치기('Nana(나나)', 'Nada(나다)', 'Dana(다나)', 'Dada(다다)')
+# 테스트 시작(제주시 행정동 경계)
+map <- ggplot() +
+  geom_sf(data=bord_dong, color="black", fill=NA, linewidth=1.0) +
+  theme_bw() + theme(axis.title = element_blank())
+
+map
+# 테스트 끝
+
+
+# 제주시 경계와 겹치는 격자 경계 합치기('Nana', 'Nada', 'Dana', 'Dada')
 file_path <- paste(prj_dir, "grid_Nana_1K.shp", sep="/")
 bord_grid_nana <- st_read(file_path)
 file_path <- paste(prj_dir, "grid_Nada_1K.shp", sep="/")
@@ -44,23 +69,43 @@ bord_grid_dada <- st_read(file_path)
 bord_grid_jeju <- rbind(bord_grid_nana, bord_grid_nada, bord_grid_dana, bord_grid_dada)
 
 
+# 테스트 시작(제주시 시도 경계와 격자 4개)
+map <- ggplot() +
+  geom_sf(data=bord_grid_jeju, color="black", fill=NA, linewidth=1.0) +
+  geom_sf(data=bord_sido, color="red", fill=NA, linewidth=1.0) +
+  theme_bw() + theme(axis.title = element_blank())
+
+map
+# 테스트 끝
+
+
 # 제주시 경계와 겹치는 격자 경계만 저장
 bord_intersects <- 
   st_join(bord_grid_jeju, bord_sido, join=st_intersects, left=FALSE)
 
 
+# 테스트 시작(제주시 경계와 겹치는 격자 경계)
+map <- ggplot() +
+  geom_sf(data=bord_intersects, color="black", fill=NA, linewidth=1.0) +
+  geom_sf(data=bord_sido, color="red", fill=NA, linewidth=1.0) +
+  theme_bw() + theme(axis.title = element_blank())
+
+map
+# 테스트 끝(제주시 경계와 겹치는 격자 경계)
+
+
 # 3. 고령인구 통계, 비율 계산하기
 
-file_path <- paste0(prj_dir, "/", "Population_Nana_1K_", base_year, ".csv")
+file_path <- paste(prj_dir, "Population_Nana_1K_2024.csv", sep="/")
 stat_nana <- read.csv(file=file_path, header=FALSE, fileEncoding="CP949")
 
-file_path <- paste0(prj_dir, "/", "Population_Nada_1K_", base_year, ".csv")
+file_path <- paste(prj_dir, "Population_Nada_1K_2024.csv", sep="/")
 stat_nada <- read.csv(file=file_path, header=FALSE, fileEncoding="CP949")
 
-file_path <- paste0(prj_dir, "/", "Population_Dana_1K_", base_year, ".csv")
+file_path <- paste(prj_dir, "Population_Dana_1K_2024.csv", sep="/")
 stat_dana <- read.csv(file=file_path, header=FALSE, fileEncoding="CP949")
 
-file_path <- paste0(prj_dir, "/", "Population_Dada_1K_", base_year, ".csv")
+file_path <- paste(prj_dir, "Population_Dada_1K_2024.csv", sep="/")
 stat_dada <- read.csv(file=file_path, header=FALSE, fileEncoding="CP949")
 # 한글을 포함한 통계 파일의 인코딩을 'CP949'로 지정
 
@@ -110,7 +155,7 @@ join # 조인 결과 확인
 
 # 불필요한 컬럼 정리, 기준연도(BASE_YEAR) NULL값 채우기
 join <- join %>% select(-BASE_DATE, -SIDO_CD, -SIDO_NM)
-join$BASE_YEAR <- base_year
+join$BASE_YEAR <- "2024"
 
 # 총인구(to_in_001)이 NA이거나 20 이하이면 고령인구 비율을 0으로 계산
 join[is.na(join$to_in_001) | join$to_in_001 <= 20, "ratio_65p"] <- 0
@@ -128,7 +173,7 @@ map_all <- ggplot() +
   # 1. 고령인구 비율 단계구분
   geom_sf(data=join, mapping=aes(fill=BREAKS), linetype = "dotted") +
   scale_fill_manual(values=c("#FFFFB2","#FECC5C","#FD8D3C", "#F03820"),
-                    na.value="white", na.translate=FALSE, name="Proportion of Elderly Population by Grid") +
+                    na.value="white", na.translate=FALSE, name="Proportion of Elderly Population") +
   # 2. 제주시 시도 경계
   geom_sf(data=bord_sido, color="black", fill=NA, linewidth=0.7) + 
   # 3. 제주시 시군구 경계와 이름
@@ -137,7 +182,7 @@ map_all <- ggplot() +
   geom_sf(data=bord_dong, color="black", fill=NA, linewidth=0.3) +
   geom_sf_text(data=bord_sigungu, mapping=aes(label=SIGUNGU_NM), alpha=0.7, size=5) +
   # 5. 제목과 테마 지정
-  ggtitle(paste0(base_year, " Proportion of Elderly Population by Grid in Jeju")) +
+  ggtitle("2024 Proportion of Elderly Population in Jeju by Grid") +
   theme_bw() + # 축 제목, 축 텍스트 등 제거
   theme(axis.title=element_blank(), axis.text=element_blank(), axis.ticks=element_blank())
 
@@ -147,12 +192,12 @@ map_all  # 전체 맵을 'Plots' 탭에서 확인
 # 6. 지도 그림과 경계파일 저장하기
 
 # 지도를 그림파일로 저장
-file_path <- paste0(prj_dir, "/", base_year, " Proportion of Elderly Population by Grid in Jeju.png")
+file_path <- paste(prj_dir, "2024 Proportion of Elderly Population in Jeju by Grid.png", sep="/")
 ggsave(map_all, filename=file_path)
 # 너비, 높이는 인치 단위로 지정 가능
 
 # 경계를 SHP 파일로 저장(전체 격자, 상위순위 격자)
-file_path <- paste0(prj_dir, "/", base_year, " Proportion of Elderly Population by Grid in Jeju.shp")
+file_path <- paste(prj_dir, "2024 Proportion of Elderly Population in Jeju by Grid.shp", sep="/")
 st_write(join, dsn=file_path, append=FALSE, layer_options="ENCODING=UTF-8")
 # 한글을 포함한 파일을 저장할 때 적절한 인코딩 지정('UTF-8' 또는 'CP949' 등)
 

@@ -12,7 +12,7 @@ library(ggplot2)      # ggplot2 시각화: ggplot() 등
 library(reshape2)     # 피벗테이블 만들기 # dcast()
 
 
-jeju_elderly_ratio_map <- function(base_year, prj_dir="C:/SGIS/R/제주시 고령인구 비율 격자별 분석") {
+jeju_elderly_ratio_map <- function(base_year, prj_dir="C:/SGIS/R/Proportion of Elderly Population in Jeju by Grid") {
   
   # 2. 제주시 경계와 겹치는 격자 경계 만들기
   
@@ -28,14 +28,14 @@ jeju_elderly_ratio_map <- function(base_year, prj_dir="C:/SGIS/R/제주시 고�
   file_path <- paste(prj_dir, "bnd_dong_39_2025_2Q.shp", sep="/")
   bord_dong <- st_read(file_path)
   
-  # 제주시 경계와 겹치는 격자 경계 합치기('나나', '나다', '다나', '다다')
-  file_path <- paste(prj_dir, "grid_나나_1K.shp", sep="/")
+  # 제주시 경계와 겹치는 격자 경계 합치기('Nana(나나)', 'Nada(나다)', 'Dana(다나)', 'Dada(다다)')
+  file_path <- paste(prj_dir, "grid_Nana_1K.shp", sep="/")
   bord_grid_nana <- st_read(file_path)
-  file_path <- paste(prj_dir, "grid_나다_1K.shp", sep="/")
+  file_path <- paste(prj_dir, "grid_Nada_1K.shp", sep="/")
   bord_grid_nada <- st_read(file_path)
-  file_path <- paste(prj_dir, "grid_다나_1K.shp", sep="/")
+  file_path <- paste(prj_dir, "grid_Dana_1K.shp", sep="/")
   bord_grid_dana <- st_read(file_path)
-  file_path <- paste(prj_dir, "grid_다다_1K.shp", sep="/")
+  file_path <- paste(prj_dir, "grid_Dada_1K.shp", sep="/")
   bord_grid_dada <- st_read(file_path)
   
   bord_grid_jeju <- rbind(bord_grid_nana, bord_grid_nada, bord_grid_dana, bord_grid_dada)
@@ -46,16 +46,16 @@ jeju_elderly_ratio_map <- function(base_year, prj_dir="C:/SGIS/R/제주시 고�
   
   # 3. 고령인구 통계, 비율 계산하기
   
-  file_path <- paste0(prj_dir, "/", base_year, "년_인구_나나_1K.csv")
+  file_path <- paste0(prj_dir, "/", "Population_Nana_1K_", base_year, ".csv")
   stat_nana <- read.csv(file=file_path, header=FALSE, fileEncoding="CP949")
   
-  file_path <- paste0(prj_dir, "/", base_year, "년_인구_나다_1K.csv")
+  file_path <- paste0(prj_dir, "/", "Population_Nada_1K_", base_year, ".csv")
   stat_nada <- read.csv(file=file_path, header=FALSE, fileEncoding="CP949")
   
-  file_path <- paste0(prj_dir, "/", base_year, "년_인구_다나_1K.csv")
+  file_path <- paste0(prj_dir, "/", "Population_Dana_1K_", base_year, ".csv")
   stat_dana <- read.csv(file=file_path, header=FALSE, fileEncoding="CP949")
   
-  file_path <- paste0(prj_dir, "/", base_year, "년_인구_다다_1K.csv")
+  file_path <- paste0(prj_dir, "/", "Population_Dada_1K_", base_year, ".csv")
   stat_dada <- read.csv(file=file_path, header=FALSE, fileEncoding="CP949")
   # 한글을 포함한 통계 파일의 인코딩을 'CP949'로 지정
   
