@@ -1,0 +1,26 @@
+{
+    "id": "01C429DB",
+    "path": "~/GitHub/sgis-data-manual/공간분석 사례/R/서울시 청년인구 격자별 순위 분석/서울시 청년인구 격자별 순위 분석(ggplot2).R",
+    "project_path": "서울시 청년인구 격자별 순위 분석(ggplot2).R",
+    "type": "r_source",
+    "hash": "1649918805",
+    "contents": "",
+    "dirty": false,
+    "created": 1782917511140.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "45,48",
+        "scrollLine": "41"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1782917720,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1782917720932,
+    "read_only": false,
+    "read_only_alternatives": []
+}
