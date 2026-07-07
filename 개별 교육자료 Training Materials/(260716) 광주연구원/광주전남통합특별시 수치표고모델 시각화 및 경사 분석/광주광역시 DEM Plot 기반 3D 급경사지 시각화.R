@@ -124,6 +124,13 @@ dem_gwangju[dem_gwangju < -100] <- NA
 
 if (ncell(dem_gwangju) > target_cells) {
   fact_value <- ceiling(sqrt(ncell(dem_gwangju) / target_cells))
+
+ cat("원본 DEM 셀 수:", ncell(dem_gwangju_jeonnam), "\n")
+ cat("목표 DEM Plot 셀 수:", target_cells, "\n")
+ cat("집계 계수 fact_value:", fact_value, "\n")
+ cat("DEM Plot 1칸 = 원본 90m 격자", fact_value, "x", fact_value, "개\n")
+ cat("DEM Plot 1칸 실제 크기 약:", fact_value * 90, "m x", fact_value * 90, "m\n")
+  
   dem_plot <- aggregate(
     dem_gwangju,
     fact = fact_value,
