@@ -1,11 +1,11 @@
 # ============================================================
-# 광주전남특별시 DEM Plot 기반 3D 급경사지 시각화
+# 광주전남통합특별시 DEM Plot 기반 3D 급경사지 시각화
 #
 # 목표
-# - 광주전남특별시를 하나의 통합 권역으로 설정하고 DEM 기반 지형을 가공한다.
+# - 광주전남통합특별시를 하나의 통합 권역으로 설정하고 DEM 기반 지형을 가공한다.
 # - 통합 행정구역의 고저 차이와 산지·구릉지 분포를 3D로 표현한다.
 # - 급경사지의 하향 흐름 방향을 화살표로 표시하여 지형 취약 구간을 직관적으로 확인한다.
-# - 향후 광주전남특별시 차원의 공간계획·재난관리·기반시설 검토를 위한 기초 시각화 자료를 제작한다.
+# - 향후 광주전남통합특별시 차원의 공간계획·재난관리·기반시설 검토를 위한 기초 시각화 자료를 제작한다.
 # ============================================================
 
 
@@ -39,7 +39,7 @@ base_dir <- "C:/Users/user/Desktop/R/데이터"
 dem_file <- file.path(base_dir, "한반도90m_GRS80.img")
 sigungu_file <- file.path(base_dir, "bnd_sigungu_00_2025_2Q.shp")
 
-output_html <- file.path(base_dir, "광주전남특별시 DEM Plot 기반 3D 급경사지 시각화.html")
+output_html <- file.path(base_dir, "광주전남통합특별시 DEM Plot 기반 3D 급경사지 시각화.html")
 temp_geojson <- file.path(base_dir, "temp_gwangju_jeonnam_dem_3d.geojson")
 
 
