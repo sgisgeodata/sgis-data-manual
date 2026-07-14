@@ -1,7 +1,7 @@
 library(dplyr)
 library(readr)
 
-folder_path <- "C:/Users/user/Desktop/네트워크_ORS/격자통계"
+folder_path <- "C:/Users/user/Desktop/네트워크_ORS/창원시 도서관 입지분석"
 
 file_names <- c(
   "2024년_주택_라라_1K.csv",
@@ -11,8 +11,7 @@ file_names <- c(
 )
 
 old_house_codes <- c(
-  "ho_yr_001", "ho_yr_002", "ho_yr_003",
-  "ho_yr_004", "ho_yr_005", "ho_yr_006"
+  "ho_yr_001", "ho_yr_002", "ho_yr_003"
 )
 
 old_house_data <- lapply(file_names, function(file) {
@@ -43,5 +42,5 @@ head(old_house_data)
 # 저장
 write_excel_csv(
   old_house_data,
-  file.path(folder_path, "2024년_노후주택_2000년_1K.csv")
+  file.path(folder_path, "2024년_노후주택_2000년이전_1K_.csv")
 )
