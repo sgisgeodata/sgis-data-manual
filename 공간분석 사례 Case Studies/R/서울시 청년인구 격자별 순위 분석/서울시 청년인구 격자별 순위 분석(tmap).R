@@ -126,7 +126,7 @@ map_all <-
     tm_text(text="RANK", col="white", size=0.6) +
   # 5. 제목과 레이아웃
   tm_title(text="2024년 서울시 청년인구 격자 순위") +
-  tm_layout(inner.margins=0.1, fontfamily = "Malgun Gothic")
+  tm_layout(inner.margins=0.1, text.fontfamily = "Malgun Gothic")
   
 
 map_all  # 전체 맵을 'Plots' 탭에서 확인
