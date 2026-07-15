@@ -185,7 +185,7 @@ map_all <-
   # 4. 제주시 행정동 경계
   tm_shape(bord_dong) + tm_borders(lwd=0.3, col="black") +
   # 5. 제목과 레이아웃
-  tm_title(text="2023년 제주도 격자별 고령인구 비율") +
+  tm_title(text="2024년 제주도 격자별 고령인구 비율") +
   tm_layout(inner.margins=0.1)
 
 map_all  # 전체 맵을 'Plots' 탭에서 확인
