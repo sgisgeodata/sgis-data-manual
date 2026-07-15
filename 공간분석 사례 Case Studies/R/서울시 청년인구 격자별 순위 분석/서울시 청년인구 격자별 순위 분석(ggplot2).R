@@ -136,7 +136,7 @@ map_all  # 전체 맵을 'Plots' 탭에서 확인
 # 7. 지도 그림과 경계파일 저장하기
 
 # 지도를 그림파일로 저장
-file_path <- paste(prj_dir, "2024년 서울시 청년인구 격자별 순위 맵.png", sep="/")
+file_path <- paste(prj_dir, "2024년 서울시 청년인구 격자별 순위.png", sep="/")
 ggsave(map_all, filename=file_path)
 # 너비, 높이는 인치 단위로 지정 가능
 

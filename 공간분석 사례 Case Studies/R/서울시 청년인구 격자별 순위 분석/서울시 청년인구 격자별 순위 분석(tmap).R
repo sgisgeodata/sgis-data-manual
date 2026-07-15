@@ -125,7 +125,7 @@ map_all <-
   tm_shape(join_topN) + tm_borders(lwd=2.0, col="blue") +
     tm_text(text="RANK", col="white", size=0.6) +
   # 5. 제목과 레이아웃
-  tm_title(text="2023년 서울시 청년인구 격자 순위") +
+  tm_title(text="2024년 서울시 청년인구 격자 순위") +
   tm_layout(inner.margins=0.1, fontfamily = "Malgun Gothic")
   
 
@@ -135,7 +135,7 @@ map_all  # 전체 맵을 'Plots' 탭에서 확인
 # 7. 지도 그림과 경계파일 저장하기
 
 # 지도를 그림파일로 저장
-file_path <- paste(prj_dir, "2024년 서울시 청년인구 격자별 순위 맵.png", sep="/")
+file_path <- paste(prj_dir, "2024년 서울시 청년인구 격자별 순위.png", sep="/")
 tmap_save(tm=map_all, filename=file_path, width=1800, height=1500, dpi=300)
 # 너비, 높이(픽셀 단위), 해상도 지정
 
