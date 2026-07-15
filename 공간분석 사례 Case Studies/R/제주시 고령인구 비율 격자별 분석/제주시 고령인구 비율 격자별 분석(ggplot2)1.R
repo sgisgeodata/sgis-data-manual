@@ -182,7 +182,7 @@ map_all <- ggplot() +
   geom_sf(data=bord_dong, color="black", fill=NA, linewidth=0.2) +
   geom_sf_text(data=bord_sigungu, mapping=aes(label=SIGUNGU_NM), alpha=0.5, size=5) +
   # 5. 제목과 테마 지정
-  ggtitle("2023년 제주도 격자별 고령인구 비율") +
+  ggtitle("2024년 제주도 격자별 고령인구 비율") +
   theme_bw() + # 축 제목, 축 텍스트 등 제거
   theme(axis.title=element_blank(), axis.text=element_blank(), axis.ticks=element_blank())
 
