@@ -100,11 +100,9 @@
 
 ## 실행 전 준비사항
 
-* Google 계정
-* Google Earth Engine 사용 등록
-* Google Cloud 프로젝트 생성 및 프로젝트 ID 설정
-* `water_detection.pth` 모델 파일 준비
-* Google Colab 또는 Python 실행 환경
+* Google 계정 로그인
+* [Google Earth Engine ](https://console.cloud.google.com/earth-engine/welcome) 접속
+* 구성탭 → 새 프로젝트 만들기 → 프로젝트 ID 설정 → 비상업용으로 등록
 
 노트북의 다음 코드는 본인의 Earth Engine 프로젝트 ID에 맞게 수정해야 합니다.
 
