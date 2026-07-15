@@ -666,9 +666,9 @@ var lst2025 = collection2025Period
 
 var lstVis = {
 
-  min: 23,
+  min: 26,
 
-  max: 43,
+  max: 46,
 
   palette: [
     '0000FF',
@@ -912,13 +912,13 @@ var legendColors = [
 
 
 var legendLabels = [
-  '23°C',
   '26°C',
   '29°C',
   '33°C',
   '36°C',
   '40°C',
-  '43°C 이상'
+  '43°C',
+  '46°C 이상'
 ];
 
 
