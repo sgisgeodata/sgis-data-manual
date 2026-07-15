@@ -15,7 +15,7 @@
 - 저장 경로 : 개별 교육자료 Training Materials/(260716) 광주연구원/GeoAI 실습/GeoDeep_building/buildings.tif
 - 설명 : 2025년에 촬영된 정사영상에서 광주 첨단지구 일부를 클립한 GeoTIFF 파일 
 
-![광주 첨단지구 일대 정사영상](%28original%29%20광주%20첨단지구%20일대%20정사영상.png)
+![광주 첨단지구 정사영상](%28original%29%20광주%20첨단지구%20정사영상.png)
 
 
 ## GeoDeep과 GeoAI 개요
