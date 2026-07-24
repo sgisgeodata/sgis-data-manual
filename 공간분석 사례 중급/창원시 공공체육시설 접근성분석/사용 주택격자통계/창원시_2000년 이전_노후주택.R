@@ -1,7 +1,7 @@
 library(dplyr)
 library(readr)
 
-folder_path <- "C:/Users/user/Desktop/네트워크_ORS/창원시 도서관 입지분석"
+folder_path <- "C:/sgis/창원시 공공체육시설 접근성분석"
 
 file_names <- c(
   "2024년_주택_라라_1K.csv",
@@ -10,9 +10,7 @@ file_names <- c(
   "2024년_주택_마마_1K.csv"
 )
 
-old_house_codes <- c(
-  "ho_yr_001", "ho_yr_002", "ho_yr_003"
-)
+old_house_codes <- c("ho_yr_001", "ho_yr_002", "ho_yr_003")
 
 old_house_data <- lapply(file_names, function(file) {
   
