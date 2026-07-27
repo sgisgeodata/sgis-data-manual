@@ -1,0 +1,1540 @@
+// =====================================================
+// GEE Landsat 도시 열섬 변화 시각화 - 완화형 최종 코드
+//
+// 대상: 광주연구원 주변 반경 3km
+// 대표연도: 1985, 1995, 2005, 2015, 2025
+//
+// 전체 처리 흐름
+// 1. 광주연구원 좌표를 기준으로 반경 3km 연구지역을 만든다.
+// 2. Landsat 영상에서 구름과 구름 그림자 픽셀을 제외한다.
+// 3. 위성의 열적외선 지표면온도 밴드를 섭씨온도로 변환한다.
+// 4. 대표연도 전후 3개년의 여름 영상을 한 컬렉션으로 합친다.
+// 5. 각 픽셀의 중앙값을 계산하여 대표연도별 LST 지도를 만든다.
+// 6. 지도 레이어, 연구지역, 광주연구원 위치, 제목과 범례를 표시한다.
+// =====================================================
+
+// -----------------------------------------------------
+// 초심자를 위한 핵심 객체와 메서드 요약
+// -----------------------------------------------------
+// var
+// - 자바스크립트에서 값을 담을 이름표, 즉 변수를 선언한다.
+// - 이 코드에서는 좌표 숫자, 날짜 문자열, ee.Image, ee.ImageCollection, UI 위젯 등을 저장한다.
+//
+// function 함수이름(입력값)
+// - 반복되는 처리과정을 하나의 이름으로 묶는다.
+// - return은 함수가 계산한 결과를 호출한 위치로 돌려준다.
+//
+// ee.Image
+// - 여러 공간 픽셀과 하나 이상의 밴드로 이루어진 한 장의 Earth Engine 영상이다.
+//
+// ee.ImageCollection
+// - 날짜와 위치가 다른 ee.Image 여러 장의 묶음이다.
+//
+// .filterBounds() / .filterDate() / .filter()
+// - 컬렉션에서 공간·기간·속성 조건에 맞는 영상만 남긴다.
+//
+// .map(함수)
+// - 컬렉션 속 모든 영상을 한 장씩 함수에 넣어 같은 처리를 반복한다.
+//
+// .select('밴드명')
+// - 영상의 여러 밴드 중 필요한 밴드만 선택한다.
+//
+// .updateMask(마스크)
+// - 마스크가 0인 픽셀을 무효화하고 1인 픽셀을 유지한다.
+//
+// .merge()
+// - 두 ImageCollection의 영상 목록을 하나로 이어 붙인다.
+//
+// .median()
+// - 같은 위치에 쌓인 여러 영상의 값을 픽셀별 중앙값으로 줄여 한 장의 대표영상을 만든다.
+//
+// .clip(roi)
+// - 연구지역 밖을 마스킹해 최종 표시범위를 roi로 제한한다.
+//
+// Map.addLayer()
+// - 계산된 영상이나 도형을 지도 Layers 목록에 추가한다.
+//
+// print()
+// - 영상 수나 안내문을 Code Editor의 Console에 표시하여 분석과정을 점검한다.
+// -----------------------------------------------------
+
+// -----------------------------------------------------
+// 1. 광주연구원 위치 및 연구지역
+// -----------------------------------------------------
+
+// ee.Geometry.Point()에는 반드시 [경도, 위도] 순서로 입력한다.
+var GRI_LON = 126.7896149;
+var GRI_LAT = 35.1949486;
+
+
+// 광주연구원 위치
+// 숫자 좌표를 GEE가 공간연산에 사용할 수 있는 점 Geometry로 변환한다.
+var griPoint = ee.Geometry.Point([
+  GRI_LON,
+  GRI_LAT
+]);
+
+
+// 반경 3km 연구지역
+// buffer()는 점 주변에 지정한 거리만큼 원형 영역을 만든다.
+// distance의 기본 단위는 미터이므로 3000은 반경 3km이다.
+// roi는 Region of Interest의 약자로 실제 분석 대상 공간을 뜻한다.
+var roi = griPoint.buffer({
+  distance: 3000
+});
+
+
+// 지도 중심
+// Map.setCenter()는 화면의 초기 위치와 확대 수준만 정한다.
+// 분석 범위나 계산 결과에는 영향을 주지 않으며 12는 줌 수준이다.
+Map.setCenter(
+  GRI_LON,
+  GRI_LAT,
+  12
+);
+
+
+// -----------------------------------------------------
+// 2. Landsat Collection 2 Level 2
+//
+// 이 연구는 1980년대부터 2020년대까지 장기간의 여름철 지표면온도를 비교한다.
+// 하나의 위성만으로는 전체 기간을 담당할 수 없으므로 운용시기가 다른 Landsat 5·8·9를 함께 불러온다.
+// Landsat은 동일한 지역을 반복 촬영하는 중해상도 지구관측 위성으로,
+// 도시·녹지·수계처럼 지표 특성에 따른 온도 차이를 약 30m 공간 단위로 확인하는 데 적합하다.
+//
+// ee.ImageCollection은 한 장의 영상이 아니라 같은 자료체계의 위성영상 여러 장을 묶은 객체이다.
+// 이후 filterDate(), filterBounds(), map(), median() 등을 이용해 필요한 영상만 골라 처리한다.
+//
+// 자료 ID 공통 구조
+// LANDSAT / 위성·센서 / C02 / T1_L2
+// - LANDSAT: Landsat 자료 제공 계열
+// - LT05, LC08, LC09: 각각 Landsat 5, 8, 9를 구분하는 코드
+// - C02: Collection 2. USGS가 재처리·개선한 두 번째 자료 모음 체계
+// - T1: Tier 1. 정밀 지상기준점과 지형보정을 거쳐 시계열 비교에 적합한 상위 기하품질 자료
+// - L2: Level 2. 원시 영상이 아니라 대기보정 지표반사도와 지표면온도 산출물이 포함된 자료
+//
+// 왜 Level 2를 사용하는가?
+// 이 코드의 목표는 열적외선 원시값을 처음부터 직접 보정하는 것이 아니라
+// USGS가 처리한 Surface Temperature(ST) 밴드를 이용해 지표면온도 지도를 만드는 것이다.
+// 따라서 ST_B6 또는 ST_B10과 QA_PIXEL이 제공되는 Collection 2 Level 2 자료를 사용한다.
+//
+// 주의: LST는 기상관측소의 2m 높이 기온이 아니라 위성이 관측한 지표 표면의 온도이다.
+// 아스팔트·건물 지붕·토양·식생 표면의 열 상태를 나타내므로 도시 열환경 분석에 활용할 수 있다.
+// -----------------------------------------------------
+
+// landsat5 변수
+// - 자료: Landsat 5 TM Collection 2 Tier 1 Level 2 영상 모음
+// - 주요 사용기간: 이 코드의 1985·1995·2005 대표기간
+// - 사용 이유: 1984년부터 2012년까지의 과거 장기자료를 제공하여 초기 시계열을 담당한다.
+// - 온도 밴드: ST_B6
+// - QA 밴드: QA_PIXEL
+// ee.ImageCollection('자료 ID')는 Earth Engine 데이터 카탈로그의 해당 영상 모음을 불러온다.
+var landsat5 = ee.ImageCollection(
+  'LANDSAT/LT05/C02/T1_L2'
+);
+
+// landsat8 변수
+// - 자료: Landsat 8 OLI/TIRS Collection 2 Tier 1 Level 2 영상 모음
+// - 주요 사용기간: 2015 대표기간과 2024~2026 최근기간
+// - 사용 이유: 2013년 이후의 지표면온도 자료를 제공하며 Landsat 5 이후 시계열을 이어 준다.
+// - OLI는 가시광·근적외선 관측, TIRS는 열적외선 관측을 담당한다.
+// - 온도 밴드: ST_B10
+// - QA 밴드: QA_PIXEL
+var landsat8 = ee.ImageCollection(
+  'LANDSAT/LC08/C02/T1_L2'
+);
+
+// landsat9 변수
+// - 자료: Landsat 9 OLI-2/TIRS-2 Collection 2 Tier 1 Level 2 영상 모음
+// - 주요 사용기간: 2024~2026 최근기간
+// - 사용 이유: Landsat 8과 밴드 구조가 호환되며, 두 위성 영상을 합치면 최근기간의 관측 횟수가 늘어난다.
+// - 온도 밴드: ST_B10
+// - QA 밴드: QA_PIXEL
+// Landsat 9만 과거연도에 적용하지 않는 이유는 2021년 이후 자료만 존재하기 때문이다.
+var landsat9 = ee.ImageCollection(
+  'LANDSAT/LC09/C02/T1_L2'
+);
+
+
+// -----------------------------------------------------
+// 3. QA 비트 산술 추출 함수
+//
+// bitwiseAnd()를 사용하지 않는 방식
+//
+// QA는 Quality Assessment의 약자로 영상의 품질상태를 기록한 보조정보이다.
+// QA_PIXEL 밴드의 각 픽셀에는 실제 밝기나 온도가 아니라 구름, 구름 그림자, 눈, 물 등
+// 여러 판정 결과가 하나의 정수 안에 0과 1의 조합인 비트(bit) 형태로 저장되어 있다.
+//
+// 비트란?
+// - 컴퓨터가 사용하는 가장 작은 이진 정보 단위로 값은 0 또는 1이다.
+// - QA_PIXEL 정수의 각 자리에는 서로 다른 의미가 배정된다.
+// - 예를 들어 Landsat 5 QA_PIXEL의 Bit 3은 Cloud, Bit 4는 Cloud Shadow이다.
+// - 해당 현상이 없으면 그 비트는 0, 있으면 1로 기록된다.
+//
+// 비트마스크가 필요한 이유
+// QA_PIXEL에 보이는 하나의 정수는 여러 품질정보를 합쳐 저장한 값이므로
+// 단순히 QA 값이 0인지 확인해서는 구름 여부만 따로 알 수 없다.
+// 원하는 자리의 비트를 분리하여 그 자리만 0 또는 1인지 확인해야 한다.
+//
+// 간단한 예시
+// QA 값이 십진수 24라면 이진수로 11000이다.
+// 오른쪽부터 Bit 0으로 세면 Bit 3과 Bit 4가 1이므로
+// Cloud와 Cloud Shadow 조건이 함께 기록된 픽셀로 해석할 수 있다.
+//
+// 왜 bitwiseAnd()를 사용하지 않는가?
+// Earth Engine은 ee.Image.bitwiseAnd()를 지원하므로 사용할 수 없는 함수라서 제외한 것이 아니다.
+// 일반적인 비트 방식은 qa.bitwiseAnd(1 << bitNumber)처럼 비트마스크를 만든 뒤 결과를 판정한다.
+// 이 코드는 초심자가 비트마스크와 시프트 연산을 먼저 이해하지 않아도 되도록
+// 2의 거듭제곱으로 나누고 2로 나눈 나머지를 구하는 산술 방식으로 같은 비트를 추출한다.
+// 즉, 기술적 필수사항이 아니라 계산 원리를 눈으로 따라가기 쉽게 한 작성 방식이다.
+// 대규모 분석에서도 결과 의미는 동일하며, 익숙한 사용자는 bitwiseAnd() 방식으로 바꿔도 된다.
+//
+// 산술 추출 원리
+// 추출값 = floor(QA 값 / 2^bitNumber) mod 2
+// 1. 2^bitNumber로 나누어 확인할 비트를 일의 자리로 이동한다.
+// 2. floor()로 소수부분을 버린다.
+// 3. mod(2)로 짝수·홀수만 판별하여 마지막 비트 0 또는 1만 남긴다.
+// -----------------------------------------------------
+
+// extractQABit 함수
+// - 목적: QA_PIXEL 영상에서 지정한 한 비트만 픽셀별 0/1 영상으로 추출한다.
+// - 입력 qaImage: QA_PIXEL 한 밴드로 이루어진 ee.Image
+// - 입력 bitNumber: 읽고 싶은 비트 위치를 나타내는 자바스크립트 숫자
+// - 반환값: 각 픽셀이 0 또는 1인 단일밴드 ee.Image
+// 이 함수는 직접 지도를 만드는 함수가 아니라 뒤의 구름 마스킹 함수에서 반복 사용되는 보조 함수이다.
+function extractQABit(
+  qaImage,
+  bitNumber
+) {
+
+  // divisor 변수
+  // - 의미: 확인하려는 비트를 일의 자리로 이동시키기 위한 나눗수
+  // - 계산: 2의 bitNumber 제곱
+  // - 예시: bitNumber가 3이면 2^3 = 8, bitNumber가 4이면 2^4 = 16
+  // Math.pow()는 일반 자바스크립트 함수이며 bitNumber가 2·3·4 같은 고정 숫자이므로
+  // GEE 서버 계산 전에 작은 상수 divisor를 만드는 데 사용된다.
+  var divisor = Math.pow(
+    2,
+    bitNumber
+  );
+
+  // qaImage.divide(divisor)
+  // - 모든 QA 픽셀값을 divisor로 나누어 목표 비트를 오른쪽 끝자리로 옮긴다.
+  //
+  // .floor()
+  // - 나눗셈으로 생긴 소수부분을 버려 목표 비트보다 낮은 자리의 영향을 제거한다.
+  //
+  // .mod(2)
+  // - 2로 나눈 나머지를 구한다.
+  // - 정수가 짝수이면 0, 홀수이면 1이므로 현재 마지막 비트만 남는다.
+  //
+  // return은 계산된 0/1 영상을 함수 호출 위치로 돌려준다.
+  return qaImage
+    .divide(divisor)
+    .floor()
+    .mod(2);
+}
+
+
+// -----------------------------------------------------
+// 4. Landsat 5 구름 마스킹
+//
+// 제거
+// - Cloud
+// - Cloud shadow
+//
+// 유지
+// - Dilated cloud
+// - Snow
+// - QA_RADSAT
+//
+// 마스킹은 조건에 맞지 않는 픽셀을 삭제하는 것이 아니라
+// 계산과 지도 표시에서 제외되는 투명 픽셀로 처리하는 과정이다.
+// 이 코드는 자료 확보를 위해 강한 조건을 모두 적용하지 않고
+// 명확한 구름과 구름 그림자만 제거하는 완화형 기준을 사용한다.
+//
+// -----------------------------------------------------
+
+// maskLandsat5 함수
+// - 목적: Landsat 5 영상 한 장에서 명확한 구름과 구름 그림자 픽셀을 제외한다.
+// - 입력 inputImage: ImageCollection.map()이 컬렉션에서 한 장씩 넘겨주는 Landsat 5 영상
+// - 반환값: 맑은 픽셀만 유효하게 남고 주요 속성이 보존된 ee.Image
+function maskLandsat5(inputImage) {
+
+  // image 변수
+  // - inputImage를 Earth Engine 영상 객체인 ee.Image로 명시적으로 감싼 값
+  // - 이후 select(), updateMask(), copyProperties() 같은 영상 메서드를 사용하기 위해 만든다.
+  // - 이미 ee.Image인 값을 다시 ee.Image()로 감싸도 내용은 바뀌지 않으며 자료형을 명확히 하는 효과가 있다.
+  var image = ee.Image(inputImage);
+
+  // qa 변수
+  // - 현재 Landsat 5 영상의 QA_PIXEL 밴드만 추출한 품질정보 영상
+  // - select('QA_PIXEL')은 여러 밴드 중 QA_PIXEL 한 밴드만 선택한다.
+  // - toInt()는 비트 추출이 가능한 정수형으로 명확히 변환한다.
+  // - 각 픽셀값에는 여러 품질판정 비트가 함께 들어 있다.
+  var qa = image
+    .select('QA_PIXEL')
+    .toInt();
+
+
+  // cloudBit 변수
+  // - QA_PIXEL의 Bit 3만 추출한 0/1 영상
+  // - 0: 구름으로 판정되지 않은 픽셀
+  // - 1: 구름으로 판정된 픽셀
+  // - Landsat 5 자료 명세에서 Bit 3은 Cloud를 의미한다.
+  // Bit 3: Cloud
+  var cloudBit = extractQABit(
+    qa,
+    3
+  );
+
+
+  // cloudShadowBit 변수
+  // - QA_PIXEL의 Bit 4만 추출한 0/1 영상
+  // - 0: 구름 그림자로 판정되지 않은 픽셀
+  // - 1: 구름 그림자로 판정된 픽셀
+  // 구름 본체뿐 아니라 지표에 드리운 그림자도 온도값을 비정상적으로 낮출 수 있어 함께 제외한다.
+  // Bit 4: Cloud shadow
+  var cloudShadowBit = extractQABit(
+    qa,
+    4
+  );
+
+
+  // clearMask 변수
+  // - 최종적으로 사용할 맑은 픽셀은 1, 제외할 픽셀은 0인 마스크 영상
+  // - cloudBit.eq(0): 구름 비트가 0인 곳만 true(1)
+  // - cloudShadowBit.eq(0): 구름 그림자 비트가 0인 곳만 true(1)
+  // - and(): 두 조건을 모두 만족해야 1이 된다.
+  // 따라서 구름 또는 그림자 중 하나라도 존재하면 0이 되어 updateMask()에서 제외된다.
+  // eq(0)은 해당 상태가 없는 픽셀을 뜻한다.
+  // and()를 사용하여 구름도 없고 그림자도 없는 픽셀만 1로 남긴다.
+  var clearMask = cloudBit
+    .eq(0)
+    .and(
+      cloudShadowBit.eq(0)
+    );
+
+
+  // 반환 과정
+  // - updateMask(clearMask): 마스크값 1인 픽셀은 유지하고 0인 픽셀은 투명·무효 처리한다.
+  // - 원본 픽셀값을 0으로 바꾸는 것이 아니라 이후 계산 대상에서 제외한다.
+  // - copyProperties(): 새 영상에도 촬영시각, 장면 구름량, 처리수준 속성을 복사한다.
+  // - system:time_start는 날짜 필터·시계열 확인, CLOUD_COVER는 장면 품질 확인,
+  //   PROCESSING_LEVEL은 ST 밴드 포함 여부 확인에 사용되는 주요 메타데이터이다.
+  // updateMask()는 clearMask가 1인 픽셀만 유효하게 유지한다.
+  // copyProperties()는 후속 필터링과 날짜 확인에 필요한 영상 속성을 보존한다.
+  return image
+    .updateMask(clearMask)
+    .copyProperties(
+      image,
+      [
+        'system:time_start',
+        'CLOUD_COVER',
+        'PROCESSING_LEVEL'
+      ]
+    );
+}
+
+
+// -----------------------------------------------------
+// 5. Landsat 8/9 구름 마스킹 
+// -----------------------------------------------------
+// Landsat 8과 9는 동일한 QA_PIXEL 구조를 사용하므로 하나의 함수를 함께 쓴다.
+// Landsat 5와 달리 얇은 고층운인 Cirrus 비트도 추가로 제외한다.
+
+// maskLandsat89 함수
+// - 목적: Landsat 8 또는 9 영상 한 장에서 권운·구름·구름 그림자 픽셀을 제외한다.
+// - 입력 inputImage: ImageCollection.map()이 한 장씩 전달한 Landsat 8 또는 9 영상
+// - 반환값: 세 가지 품질조건이 모두 없는 픽셀만 유효하게 남은 ee.Image
+// Landsat 8과 9는 같은 QA_PIXEL 비트 구조와 ST_B10 밴드 체계를 사용하므로 한 함수를 공유한다.
+function maskLandsat89(inputImage) {
+
+  // image 변수
+  // - 전달받은 한 장의 위성영상을 ee.Image 자료형으로 명시한 객체
+  // - 원본 밴드와 속성을 유지한 채 QA 밴드 선택과 마스킹에 사용한다.
+  var image = ee.Image(inputImage);
+
+  // qa 변수
+  // - image에서 QA_PIXEL 한 밴드만 선택하고 정수형으로 변환한 품질정보 영상
+  // - 이 영상의 각 픽셀 정수에서 Bit 2·3·4를 각각 분리한다.
+  var qa = image
+    .select('QA_PIXEL')
+    .toInt();
+
+
+  // cirrusBit 변수
+  // - Landsat 8/9 QA_PIXEL의 Bit 2를 추출한 0/1 영상
+  // - 0: 고신뢰도 권운으로 판정되지 않음
+  // - 1: 고신뢰도 권운(Cirrus)으로 판정됨
+  // 얇은 고층 구름도 열적외선 관측에 영향을 줄 수 있어 최근 센서에서는 추가로 제외한다.
+  // Bit 2: Cirrus
+  var cirrusBit = extractQABit(
+    qa,
+    2
+  );
+
+
+  // cloudBit 변수
+  // - Landsat 8/9 QA_PIXEL의 Bit 3만 추출한 0/1 영상
+  // - 0: 구름으로 판정되지 않음
+  // - 1: 구름으로 판정됨
+  // Bit 3: Cloud
+  var cloudBit = extractQABit(
+    qa,
+    3
+  );
+
+
+  // cloudShadowBit 변수
+  // - Landsat 8/9 QA_PIXEL의 Bit 4만 추출한 0/1 영상
+  // - 0: 구름 그림자로 판정되지 않음
+  // - 1: 구름 그림자로 판정됨
+  // Bit 4: Cloud shadow
+  var cloudShadowBit = extractQABit(
+    qa,
+    4
+  );
+
+
+  // clearMask 변수
+  // - Landsat 8/9에서 최종적으로 사용할 픽셀을 결정하는 0/1 마스크 영상
+  // - cirrusBit, cloudBit, cloudShadowBit이 모두 0인 경우에만 1이 된다.
+  // - and()를 연속으로 연결하면 세 조건의 논리곱, 즉 모두 참인 위치만 남는다.
+  // 세 조건이 모두 0일 때만 맑은 픽셀로 판단한다.
+  // 하나라도 1이면 해당 픽셀은 마스킹되어 이후 통계에서 제외된다.
+  var clearMask = cirrusBit
+    .eq(0)
+    .and(
+      cloudBit.eq(0)
+    )
+    .and(
+      cloudShadowBit.eq(0)
+    );
+
+
+  // 반환 과정
+  // - updateMask(clearMask): 마스크값 1인 픽셀은 유지하고 0인 픽셀은 투명·무효 처리한다.
+  // - 원본 픽셀값을 0으로 바꾸는 것이 아니라 이후 계산 대상에서 제외한다.
+  // - copyProperties(): 새 영상에도 촬영시각, 장면 구름량, 처리수준 속성을 복사한다.
+  // - system:time_start는 날짜 필터·시계열 확인, CLOUD_COVER는 장면 품질 확인,
+  //   PROCESSING_LEVEL은 ST 밴드 포함 여부 확인에 사용되는 주요 메타데이터이다.
+  // updateMask()는 clearMask가 1인 픽셀만 유효하게 유지한다.
+  // copyProperties()는 후속 필터링과 날짜 확인에 필요한 영상 속성을 보존한다.
+  return image
+    .updateMask(clearMask)
+    .copyProperties(
+      image,
+      [
+        'system:time_start',
+        'CLOUD_COVER',
+        'PROCESSING_LEVEL'
+      ]
+    );
+}
+
+
+// -----------------------------------------------------
+// 6. Landsat 5 지표면온도 계산
+//
+// ST_B6
+// Kelvin → Celsius
+//
+// ST_B6는 Landsat 5 Level 2의 지표면온도 원시 스케일 밴드이다.
+// 저장된 정수값에 공식 배율과 오프셋을 적용하면 Kelvin 온도가 된다.
+// 마지막으로 273.15를 빼서 사람이 익숙한 섭씨온도로 바꾼다.
+// -----------------------------------------------------
+
+// addLSTLandsat5 함수
+// - 목적: Landsat 5 Level 2의 ST_B6 저장값을 실제 섭씨 지표면온도로 변환한다.
+// - 입력 inputImage: 구름 마스킹까지 끝난 Landsat 5 영상 한 장
+// - 반환값: 기존 밴드에 'LST'라는 섭씨온도 밴드가 추가된 ee.Image
+function addLSTLandsat5(inputImage) {
+
+  // image 변수
+  // - 입력 영상을 ee.Image로 명시한 객체
+  // - ST_B6 선택, 밴드 추가, 속성 복사에 사용된다.
+  var image = ee.Image(inputImage);
+
+  // lst 변수
+  // - Landsat 5 ST_B6의 정수 저장값을 공식 Scale과 Offset으로 복원하고 섭씨로 바꾼 영상
+  // - 최종 밴드 이름은 센서와 관계없이 'LST'로 통일한다.
+  // 계산식: ST_B6 × 0.00341802 + 149.0 - 273.15
+  // multiply()는 배율, add()는 Kelvin 오프셋, subtract()는 섭씨 변환이다.
+  var lst = image
+    // select('ST_B6'): Landsat 5의 지표면온도 저장밴드만 선택한다.
+    .select('ST_B6')
+    // multiply(0.00341802): 정수 DN에 공식 Scale Factor를 곱한다.
+    .multiply(0.00341802)
+    // add(149.0): 공식 Offset을 더해 Kelvin 단위 실제값으로 복원한다.
+    .add(149.0)
+    // subtract(273.15): Kelvin에서 273.15를 빼 섭씨온도로 바꾼다.
+    .subtract(273.15)
+    // 이후 센서와 관계없이 같은 이름으로 처리하도록 LST로 통일한다.
+    .rename('LST');
+
+
+  // addBands()는 계산한 LST를 원본 영상에 새 밴드로 붙인다.
+  // 원본 촬영일과 구름량 속성도 함께 유지한다.
+  return image
+    .addBands(lst)
+    .copyProperties(
+      image,
+      [
+        'system:time_start',
+        'CLOUD_COVER',
+        'PROCESSING_LEVEL'
+      ]
+    );
+}
+
+
+// -----------------------------------------------------
+// 7. Landsat 8/9 지표면온도 계산
+//
+// ST_B10
+// Kelvin → Celsius
+//
+// Landsat 8과 9의 지표면온도는 ST_B10 밴드에 저장된다.
+// 밴드 이름은 Landsat 5와 다르지만 배율·오프셋과 섭씨 변환 방식은 같다.
+// -----------------------------------------------------
+
+// addLSTLandsat89 함수
+// - 목적: Landsat 8/9 Level 2의 ST_B10 저장값을 실제 섭씨 지표면온도로 변환한다.
+// - 입력 inputImage: 구름 마스킹까지 끝난 Landsat 8 또는 9 영상 한 장
+// - 반환값: 기존 밴드에 'LST' 섭씨온도 밴드가 추가된 ee.Image
+function addLSTLandsat89(inputImage) {
+
+  // image 변수
+  // - 입력 Landsat 8/9 영상을 ee.Image로 명시한 객체
+  // - Landsat 8과 9의 밴드 구조가 같아 같은 계산식에 사용할 수 있다.
+  var image = ee.Image(inputImage);
+
+  // lst 변수
+  // - ST_B10 저장값에 Scale 0.00341802와 Offset 149.0을 적용해 Kelvin으로 복원한 뒤
+  //   273.15를 빼서 섭씨로 변환한 단일밴드 영상
+  // Landsat 8/9의 열적외선 지표면온도 밴드 ST_B10을 선택한다.
+  var lst = image
+    // select('ST_B10'): Landsat 8/9의 지표면온도 저장밴드만 선택한다.
+    .select('ST_B10')
+    // multiply(0.00341802): 공식 Scale Factor를 곱한다.
+    .multiply(0.00341802)
+    // add(149.0): 공식 Offset을 더해 Kelvin 단위 실제값으로 복원한다.
+    .add(149.0)
+    // subtract(273.15): 절대온도 Kelvin을 섭씨온도로 변환한다.
+    .subtract(273.15)
+    // 이후 센서와 관계없이 같은 이름으로 처리하도록 LST로 통일한다.
+    .rename('LST');
+
+
+  // addBands()는 계산한 LST를 원본 영상에 새 밴드로 붙인다.
+  // 원본 촬영일과 구름량 속성도 함께 유지한다.
+  return image
+    .addBands(lst)
+    .copyProperties(
+      image,
+      [
+        'system:time_start',
+        'CLOUD_COVER',
+        'PROCESSING_LEVEL'
+      ]
+    );
+}
+
+
+// -----------------------------------------------------
+// 8. Landsat 5 전처리
+// -----------------------------------------------------
+// 전처리 함수는 날짜만 입력하면 공간·기간·구름량·처리수준을 필터링하고
+// 각 영상에 구름 마스킹과 LST 계산을 순서대로 적용해 LST 컬렉션을 반환한다.
+
+// prepareLandsat5 함수
+// - 목적: 입력 날짜구간의 Landsat 5 영상을 연구지역·구름량·처리수준으로 선별하고 LST만 반환한다.
+// - 입력 startDate: 포함되는 시작일 문자열, 예: '1984-06-01'
+// - 입력 endDate: 포함되지 않는 종료일 문자열, 예: '1984-09-01'
+// - 반환값: 구름 마스킹과 섭씨변환이 끝난 'LST' 단일밴드 ImageCollection
+// startDate는 포함되고 endDate는 포함되지 않는다.
+// 예: 6월 1일~9월 1일은 실제로 6월 1일부터 8월 31일까지이다.
+function prepareLandsat5(
+  startDate,
+  endDate
+) {
+
+  return landsat5
+
+    // filterBounds(roi)
+    // - 영상 장면의 촬영범위가 연구지역 roi와 공간적으로 교차하는 영상만 남긴다.
+    // - 영상 전체를 3km로 자르는 단계는 아니며, 불필요한 다른 지역 장면을 검색목록에서 제외하는 공간 필터이다.
+    // 연구지역과 공간적으로 겹치는 장면만 남긴다.
+    .filterBounds(roi)
+
+    // 지정한 촬영기간에 해당하는 영상만 남긴다.
+    .filterDate(
+      startDate,
+      endDate
+    )
+
+    // 작은 연구지역이므로 장면 전체 구름량을
+    // 80%까지 허용하여 사용 가능한 영상 확보
+    .filter(
+      ee.Filter.lt(
+        'CLOUD_COVER',
+        80
+      )
+    )
+
+    // PROCESSING_LEVEL 속성 설명
+    // - L2SP: Surface Reflectance와 Surface Temperature가 모두 처리된 영상
+    // - L2SR: Surface Reflectance만 있고 ST 밴드는 비어 있는 영상
+    // 이 분석은 ST_B6가 필요하므로 L2SP만 남긴다.
+    // 지표면온도 밴드가 존재하는 영상만 사용
+    .filter(
+      ee.Filter.eq(
+        'PROCESSING_LEVEL',
+        'L2SP'
+      )
+    )
+
+    // map()은 컬렉션의 모든 영상에 함수를 한 장씩 적용한다.
+    .map(maskLandsat5)
+
+    // 구름이 제거된 각 영상에 섭씨 LST 밴드를 계산한다.
+    .map(addLSTLandsat5)
+
+    // 이후 분석에 필요한 LST 밴드만 남겨 자료 구조를 단순화한다.
+    .select('LST');
+}
+
+
+// -----------------------------------------------------
+// 9. Landsat 8 전처리
+// -----------------------------------------------------
+// 처리 순서는 Landsat 5와 같지만 QA 규칙과 온도 밴드가 Landsat 8용이다.
+// 2015년 대표기간은 Landsat 8만 사용하여 같은 세대의 센서로 통일한다.
+
+// prepareLandsat8 함수
+// - 목적: 입력 날짜구간의 Landsat 8 영상만 전처리해 LST 컬렉션을 만든다.
+// - 입력 startDate·endDate: filterDate()에 전달할 시작일과 종료일 문자열
+// - 반환값: 'LST' 밴드만 가진 Landsat 8 ImageCollection
+// 2015 대표기간에 Landsat 9를 섞지 않는 이유는 해당 시기에 Landsat 9 자료가 존재하지 않기 때문이다.
+// 입력 날짜 구간에 해당하는 Landsat 8 LST 컬렉션을 만든다.
+function prepareLandsat8(
+  startDate,
+  endDate
+) {
+
+  return landsat8
+
+    // 공간 필터: 연구지역을 촬영한 장면만 선택
+    .filterBounds(roi)
+
+    .filterDate(
+      startDate,
+      endDate
+    )
+
+    // 장면 전체 구름량이 80% 미만인 영상만 사용한다.
+    // CLOUD_COVER는 장면 전체 기준이므로 ROI 내부 상태와 완전히 같지는 않다.
+    .filter(
+      ee.Filter.lt(
+        'CLOUD_COVER',
+        80
+      )
+    )
+
+    // L2SP는 Surface Temperature 밴드가 포함된 Level 2 영상이다.
+    .filter(
+      ee.Filter.eq(
+        'PROCESSING_LEVEL',
+        'L2SP'
+      )
+    )
+
+    // 각 영상의 구름을 제거하고 LST를 계산한 뒤 LST 밴드만 반환한다.
+    .map(maskLandsat89)
+
+    .map(addLSTLandsat89)
+
+    .select('LST');
+}
+
+
+// -----------------------------------------------------
+// 10. Landsat 8/9 통합 전처리
+// -----------------------------------------------------
+// 최근 기간은 Landsat 8과 9를 합쳐 관측 횟수를 늘린다.
+// 두 센서는 호환되는 밴드 구조를 사용하므로 동일한 전처리 함수를 적용할 수 있다.
+
+// prepareLandsat89 함수
+// - 목적: 최근기간에 Landsat 8과 9를 합쳐 관측기회를 늘린 뒤 같은 방식으로 전처리한다.
+// - 입력 startDate·endDate: 선택할 날짜 범위
+// - 반환값: 두 위성에서 얻은 'LST' 단일밴드 영상이 함께 들어 있는 ImageCollection
+function prepareLandsat89(
+  startDate,
+  endDate
+) {
+
+  // merged 변수
+  // - landsat8 컬렉션 뒤에 landsat9 컬렉션의 영상 목록을 이어 붙인 통합 ImageCollection
+  // - merge()는 픽셀값을 평균하거나 합산하는 함수가 아니라 두 영상 목록을 한 묶음으로 결합한다.
+  // - 통합 후에도 각 영상의 촬영일·센서·속성은 개별 영상에 남아 있다.
+  // merge()는 두 컬렉션의 영상을 하나의 컬렉션에 이어 붙인다.
+  // 이 단계에서는 평균을 내지 않고 영상 목록만 합친다.
+  var merged = landsat8.merge(
+    landsat9
+  );
+
+
+  return merged
+
+    // 합쳐진 Landsat 8/9 영상 중 연구지역과 겹치는 장면만 선택한다.
+    .filterBounds(roi)
+
+    .filterDate(
+      startDate,
+      endDate
+    )
+
+    .filter(
+      ee.Filter.lt(
+        'CLOUD_COVER',
+        80
+      )
+    )
+
+    .filter(
+      ee.Filter.eq(
+        'PROCESSING_LEVEL',
+        'L2SP'
+      )
+    )
+
+    .map(maskLandsat89)
+
+    .map(addLSTLandsat89)
+
+    .select('LST');
+}
+
+
+// -----------------------------------------------------
+// 11. 특정 연도 6~8월 컬렉션 생성
+//
+// 6월 1일 이상
+// 9월 1일 미만
+//
+// 한 연도와 센서 종류를 입력받아 해당 연도의 여름철 LST 컬렉션을 만든다.
+// 센서 선택 로직을 한곳에 모아 대표연도별 코드 반복을 줄인다.
+// -----------------------------------------------------
+
+// getSummerCollection 함수
+// - 목적: 연도와 센서코드만 입력하면 해당 연도 6~8월 LST 컬렉션을 자동으로 만든다.
+// - 입력 year: 조사연도 숫자, 예: 1985 또는 2025
+// - 입력 sensorType: 사용할 전처리 경로를 고르는 문자열 'L5', 'L8', 'L89'
+// - 반환값: 해당 연도 여름철의 전처리된 LST ImageCollection
+// 이 함수를 두는 이유는 연도마다 날짜 문자열과 센서별 함수를 반복 작성하지 않기 위해서이다.
+function getSummerCollection(
+  year,
+  sensorType
+) {
+
+  // startDate 변수
+  // - 해당 연도 여름 분석의 시작일을 담는 문자열
+  // - 숫자 year를 String()으로 문자로 바꾼 뒤 '-06-01'을 이어 붙인다.
+  // - 예: year가 2025이면 '2025-06-01'
+  // 숫자 연도를 문자열로 바꾸고 월·일을 붙여 시작일을 만든다.
+  var startDate =
+    String(year) + '-06-01';
+
+  // endDate 변수
+  // - 해당 연도 여름 분석의 종료 경계를 담는 문자열
+  // - filterDate()는 종료일을 포함하지 않으므로 9월 1일을 사용해 8월 31일까지 선택한다.
+  // - 예: year가 2025이면 '2025-09-01'
+  // filterDate()의 종료일은 미포함이므로 9월 1일을 넣으면 8월 31일까지 선택된다.
+  var endDate =
+    String(year) + '-09-01';
+
+
+  // ===는 값과 자료형이 모두 같은지 비교하는 자바스크립트 조건식이다.
+  if (sensorType === 'L5') {
+
+    return prepareLandsat5(
+      startDate,
+      endDate
+    );
+
+  }
+
+
+  if (sensorType === 'L8') {
+
+    return prepareLandsat8(
+      startDate,
+      endDate
+    );
+
+  }
+
+
+  // L5와 L8이 아니면 최근 분석용 L89로 간주하여 Landsat 8/9 통합 함수를 사용한다.
+  return prepareLandsat89(
+    startDate,
+    endDate
+  );
+}
+
+
+// -----------------------------------------------------
+// 12. 3개 연도 여름철 컬렉션 병합
+// -----------------------------------------------------
+// 단일 연도만 사용하면 구름과 촬영시점에 따라 결과가 크게 달라질 수 있다.
+// 대표연도 전후 1년을 함께 사용해 영상 수를 확보하고 연도별 우연한 편차를 완화한다.
+
+// mergeThreeSummers 함수
+// - 목적: 대표연도 전년·당해연도·다음연도의 여름 LST 영상을 한 컬렉션으로 합친다.
+// - 입력 firstYear: 대표연도보다 1년 전
+// - 입력 secondYear: 대표연도
+// - 입력 thirdYear: 대표연도보다 1년 후
+// - 입력 sensorType: 세 연도에 공통 적용할 센서코드
+// - 반환값: 세 여름의 모든 전처리 영상이 이어진 ImageCollection
+function mergeThreeSummers(
+  firstYear,
+  secondYear,
+  thirdYear,
+  sensorType
+) {
+
+  // firstCollection 변수
+  // - firstYear의 6~8월 전처리 LST 영상 묶음
+  // - 대표기간의 첫 번째 연도 자료를 저장한다.
+  var firstCollection = getSummerCollection(
+    firstYear,
+    sensorType
+  );
+
+  // secondCollection 변수
+  // - secondYear, 즉 대표연도 당해의 6~8월 전처리 LST 영상 묶음
+  var secondCollection = getSummerCollection(
+    secondYear,
+    sensorType
+  );
+
+  // thirdCollection 변수
+  // - thirdYear의 6~8월 전처리 LST 영상 묶음
+  // - 대표연도 다음 해의 자료를 저장한다.
+  var thirdCollection = getSummerCollection(
+    thirdYear,
+    sensorType
+  );
+
+
+  // 세 컬렉션의 영상 목록을 순서대로 하나로 합친다.
+  // 아직 대표값 계산은 하지 않으며 모든 여름 영상을 보관한다.
+  return firstCollection
+    .merge(secondCollection)
+    .merge(thirdCollection);
+}
+
+
+// -----------------------------------------------------
+// 13. 1985년 대표 LST
+// 1984~1986년 여름
+//
+// 아래 대표연도 처리의 공통 원리
+// collectionXXXX: 전후 3개년 여름철 LST 영상 묶음
+// lstXXXX: 같은 위치의 여러 관측값 중 중앙값을 취한 대표 LST 영상
+// -----------------------------------------------------
+
+// Landsat 5로 1984, 1985, 1986년 여름 영상을 모은다.
+var collection1985 = mergeThreeSummers(
+  1984,
+  1985,
+  1986,
+  'L5'
+);
+
+
+// size()는 필터링과 전처리 후 실제 남은 영상 수를 Console에 보여준다.
+// 영상 수가 0이면 뒤의 median() 결과가 비게 되므로 반드시 확인해야 한다.
+print(
+  '1985 대표기간 영상 개수 | 1984~1986년 여름',
+  collection1985.size()
+);
+
+
+// median()은 픽셀별로 여러 영상의 중앙값을 계산한다.
+// 평균보다 극단적인 구름 잔여값이나 비정상 온도의 영향을 덜 받는다.
+var lst1985 = collection1985
+  .median()
+  .rename('LST')
+  // clip()은 연구지역 밖 픽셀을 가려 지도와 후속 계산 범위를 제한한다.
+  .clip(roi)
+  // set()은 결과 영상에 대표연도, 기간, 사용 영상 수 메타데이터를 기록한다.
+  .set({
+    year: 1985,
+    period: '1984-1986',
+    image_count: collection1985.size()
+  });
+
+
+// -----------------------------------------------------
+// 14. 1995년 대표 LST
+// 1994~1996년 여름
+// -----------------------------------------------------
+
+// 1995년을 중심으로 Landsat 5 여름 영상을 모은다.
+var collection1995 = mergeThreeSummers(
+  1994,
+  1995,
+  1996,
+  'L5'
+);
+
+
+print(
+  '1995 대표기간 영상 개수 | 1994~1996년 여름',
+  collection1995.size()
+);
+
+
+// 1994~1996년 관측값의 픽셀별 중앙값으로 1995 대표 지도를 만든다.
+var lst1995 = collection1995
+  .median()
+  .rename('LST')
+  .clip(roi)
+  .set({
+    year: 1995,
+    period: '1994-1996',
+    image_count: collection1995.size()
+  });
+
+
+// -----------------------------------------------------
+// 15. 2005년 대표 LST
+// 2004~2006년 여름
+// -----------------------------------------------------
+
+// 2005년을 중심으로 Landsat 5 여름 영상을 모은다.
+var collection2005 = mergeThreeSummers(
+  2004,
+  2005,
+  2006,
+  'L5'
+);
+
+
+print(
+  '2005 대표기간 영상 개수 | 2004~2006년 여름',
+  collection2005.size()
+);
+
+
+// 2004~2006년 여름철 온도의 픽셀별 중앙값을 계산한다.
+var lst2005 = collection2005
+  .median()
+  .rename('LST')
+  .clip(roi)
+  .set({
+    year: 2005,
+    period: '2004-2006',
+    image_count: collection2005.size()
+  });
+
+
+// -----------------------------------------------------
+// 16. 2015년 대표 LST
+// 2014~2016년 여름
+// -----------------------------------------------------
+
+// 2015년 시기는 Landsat 8만 사용해 2014~2016년 영상을 모은다.
+var collection2015 = mergeThreeSummers(
+  2014,
+  2015,
+  2016,
+  'L8'
+);
+
+
+print(
+  '2015 대표기간 영상 개수 | 2014~2016년 여름',
+  collection2015.size()
+);
+
+
+// Landsat 8 여름철 영상의 픽셀별 중앙값으로 2015 대표 지도를 만든다.
+var lst2015 = collection2015
+  .median()
+  .rename('LST')
+  .clip(roi)
+  .set({
+    year: 2015,
+    period: '2014-2016',
+    image_count: collection2015.size()
+  });
+
+
+// -----------------------------------------------------
+// 17. 2025년 대표 LST
+//
+// 2024년 여름
+// 2025년 여름
+// 2026년 현재 확보된 6~8월 영상
+//
+// 아직 촬영되지 않은 날짜는 자동으로 제외됨
+//
+// 현재 날짜 이후 영상은 컬렉션에 존재하지 않으므로 별도 오류 없이 선택되지 않는다.
+// 2026년 6~8월 전체가 끝나기 전 실행하면 실행 시점까지 공개된 영상만 포함된다.
+// -----------------------------------------------------
+
+// collection2024 변수
+// - 2024년 6~8월 Landsat 8/9의 전처리된 LST 영상 묶음
+// - 최근 대표기간의 첫 번째 연도 자료이다.
+// 최근 기간은 Landsat 8과 9를 함께 사용하여 연도별 관측 수를 확보한다.
+var collection2024 = getSummerCollection(
+  2024,
+  'L89'
+);
+
+// collection2025 변수
+// - 대표연도인 2025년 6~8월 Landsat 8/9 LST 영상 묶음
+var collection2025 = getSummerCollection(
+  2025,
+  'L89'
+);
+
+// collection2026 변수
+// - 2026년 6~8월 가운데 실행 시점에 Earth Engine에 공개되어 있는 영상 묶음
+// - 아직 촬영·공개되지 않은 미래 날짜는 컬렉션에 존재하지 않으므로 자동으로 포함되지 않는다.
+var collection2026 = getSummerCollection(
+  2026,
+  'L89'
+);
+
+
+// 세 연도의 영상 목록을 하나로 결합한다.
+// 변수명은 2025 대표기간을 뜻하며 실제 포함 범위는 2024~2026년이다.
+var collection2025Period = collection2024
+  .merge(collection2025)
+  .merge(collection2026);
+
+
+print(
+  '2025 대표기간 영상 개수 | 2024~2026년 현재 확보분',
+  collection2025Period.size()
+);
+
+
+print(
+  '2024년 여름 영상 개수',
+  collection2024.size()
+);
+
+print(
+  '2025년 여름 영상 개수',
+  collection2025.size()
+);
+
+print(
+  '2026년 현재 여름 영상 개수',
+  collection2026.size()
+);
+
+
+// 현재까지 확보된 2024~2026년 여름 영상의 픽셀별 중앙값을 계산한다.
+var lst2025 = collection2025Period
+  .median()
+  .rename('LST')
+  .clip(roi)
+  .set({
+    year: 2025,
+    period: '2024-2026',
+    image_count: collection2025Period.size()
+  });
+
+
+// -----------------------------------------------------
+// 18. LST 시각화 설정
+//
+// 파란색은 낮은 온도이므로
+// 실제 여름철 자료에서는 적을 수 있음
+//
+// 이 객체는 화면 표현 규칙일 뿐 실제 LST 수치 자체를 바꾸지 않는다.
+// min 이하 값은 첫 색, max 이상 값은 마지막 색으로 표현된다.
+// palette는 낮은 온도에서 높은 온도로 이어지는 색상 순서이다.
+// -----------------------------------------------------
+
+// lstVis 변수
+// - LST 영상을 지도에 어떤 온도범위와 색으로 표현할지 저장한 일반 자바스크립트 객체
+// - 분석값을 변경하지 않고 화면 표시만 결정한다.
+// - 모든 연도에 같은 lstVis를 적용해야 같은 색이 같은 온도를 뜻하므로 시기 비교가 가능하다.
+var lstVis = {
+
+  // min 속성
+  // - 색상표의 시작점으로 사용할 온도값 26°C
+  // - 26°C 이하 값은 첫 번째 색상에 가깝게 표시된다.
+  min: 26,
+
+  // max 속성
+  // - 색상표의 끝점으로 사용할 온도값 46°C
+  // - 46°C 이상 값은 마지막 색상에 가깝게 표시된다.
+  max: 46,
+
+  // palette 속성
+  // - 낮은 온도에서 높은 온도 순으로 적용할 16진수 RGB 색상코드 배열
+  // - 배열의 앞쪽은 파랑·청록, 중간은 초록·노랑, 뒤쪽은 주황·빨강이다.
+  palette: [
+    '0000FF',
+    '00BFFF',
+    '00FFFF',
+    '00A600',
+    'FFFF00',
+    'FFA500',
+    'FF0000'
+  ]
+
+};
+
+
+// -----------------------------------------------------
+// 19. 대표연도별 LST 레이어
+//
+// 2025 레이어만 처음 표시
+//
+// Map.addLayer(영상, 시각화설정, 이름, 초기표시여부) 순서이다.
+// 마지막 값이 false이면 Layers 목록에는 추가되지만 처음에는 꺼져 있다.
+// 동일한 색상표를 사용하므로 레이어를 켜고 끄며 공간 변화를 비교할 수 있다.
+// -----------------------------------------------------
+
+Map.addLayer(
+  lst1985,
+  lstVis,
+  'LST 1985 | 1984~1986 여름',
+  false
+);
+
+Map.addLayer(
+  lst1995,
+  lstVis,
+  'LST 1995 | 1994~1996 여름',
+  false
+);
+
+Map.addLayer(
+  lst2005,
+  lstVis,
+  'LST 2005 | 2004~2006 여름',
+  false
+);
+
+Map.addLayer(
+  lst2015,
+  lstVis,
+  'LST 2015 | 2014~2016 여름',
+  false
+);
+
+Map.addLayer(
+  lst2025,
+  lstVis,
+  'LST 2025 | 2024~2026 현재 확보분',
+  true
+);
+
+
+// -----------------------------------------------------
+// 20. 연구지역 외곽선
+// -----------------------------------------------------
+// Geometry 자체를 바로 선으로 표현하기보다 FeatureCollection으로 바꾼 뒤
+// paint()를 이용해 픽셀 영상 형태의 외곽선을 만들어 지도에 올린다.
+
+// roiFeature 변수
+// - 원형 Geometry인 roi를 하나의 공간객체 Feature로 변환한 값
+// - Feature는 도형과 속성을 함께 가질 수 있어 FeatureCollection과 paint() 입력으로 쓰기 편하다.
+// Geometry인 roi를 속성을 가질 수 있는 Feature로 변환한다.
+var roiFeature = ee.Feature(
+  roi
+);
+
+// roiCollection 변수
+// - roiFeature 한 개를 목록 형태로 감싼 FeatureCollection
+// - 현재는 객체가 하나뿐이지만 paint()의 featureCollection 인수 형식에 맞추기 위해 만든다.
+// paint()가 여러 공간객체 묶음을 입력받으므로 FeatureCollection으로 감싼다.
+var roiCollection = ee.FeatureCollection([
+  roiFeature
+]);
+
+
+// roiOutline 변수
+// - 연구지역 경계만 값 1로 칠해진 래스터 영상
+// - ee.Image()는 비어 있는 기본 영상을 만들고, byte()는 0~255 정수형으로 바꾼다.
+// - paint()는 roiCollection을 영상 위에 그리며 color: 1은 픽셀값, width: 3은 선 두께이다.
+// 빈 영상을 byte 정수형으로 만든 뒤 roi 경계를 값 1, 두께 3픽셀로 칠한다.
+var roiOutline = ee.Image()
+  .byte()
+  .paint({
+    featureCollection: roiCollection,
+    color: 1,
+    width: 3
+  });
+
+
+Map.addLayer(
+  roiOutline,
+  {
+    min: 0,
+    max: 1,
+    palette: [
+      'FF0000'
+    ]
+  },
+  '연구지역 | 반경 3km',
+  true
+);
+
+
+// -----------------------------------------------------
+// 21. 광주연구원 위치 표시
+//
+// 빨간색 중심점만 표시
+//
+// 지도에서 한 픽셀짜리 점은 확대 수준에 따라 잘 보이지 않을 수 있으므로
+// 실제 위치점을 반경 70m 원으로 넓혀 눈에 띄는 표식으로 만든다.
+// 이 원은 분석용 연구지역이 아니라 위치 안내용 시각 요소이다.
+// -----------------------------------------------------
+
+// griCenterCircle 변수
+// - 광주연구원의 실제 점 위치를 중심으로 만든 반경 70m 원형 Geometry
+// - 분석범위를 뜻하지 않고 지도에서 위치가 잘 보이도록 점을 확대 표현하기 위한 시각화 도형이다.
+// 광주연구원 점 주변 70m 원형 Geometry 생성
+var griCenterCircle = griPoint.buffer({
+  distance: 70
+});
+
+// griCenterImage 변수
+// - griCenterCircle 내부를 값 1로 채운 단일밴드 래스터 영상
+// - Map.addLayer()에서 빨간색 위치표식으로 표시하기 위해 만든다.
+// 원형 Geometry를 지도 레이어로 표시할 수 있도록 값 1의 래스터 영상으로 칠한다.
+var griCenterImage = ee.Image()
+  .byte()
+  .paint({
+    featureCollection: ee.FeatureCollection([
+      ee.Feature(griCenterCircle)
+    ]),
+    color: 1
+  });
+
+Map.addLayer(
+  griCenterImage,
+  {
+    min: 0,
+    max: 1,
+    palette: [
+      'FF0000'
+    ]
+  },
+  '광주연구원 위치',
+  true
+);
+
+
+// -----------------------------------------------------
+// 22. 제목 패널
+// -----------------------------------------------------
+// ui.Panel과 ui.Label은 분석용 서버 객체가 아니라 화면 인터페이스 요소이다.
+// 패널을 만들고 제목·부제·위치 안내 라벨을 위에서 아래 순서로 추가한다.
+
+// titlePanel 변수
+// - 지도 위쪽 중앙에 제목 관련 위젯을 세로로 담을 UI 컨테이너
+// - position은 지도 내 배치 위치, padding은 패널 안쪽 여백을 뜻한다.
+// top-center 위치에 배치될 빈 패널을 만든다.
+var titlePanel = ui.Panel({
+
+  style: {
+    position: 'top-center',
+    padding: '8px 15px'
+  }
+
+});
+
+
+// titleLabel 변수
+// - 지도의 핵심 주제 문구와 글자 스타일을 저장한 ui.Label 위젯
+// - value는 화면에 보일 문장, style은 굵기·크기·여백을 정한다.
+// 첫 번째 라벨은 지도의 주제를 보여주는 큰 제목이다.
+var titleLabel = ui.Label({
+
+  value:
+    '광주연구원 주변 여름철 지표면 온도 변화',
+
+  style: {
+    fontWeight: 'bold',
+    fontSize: '18px',
+    margin: '0'
+  }
+
+});
+
+
+// subtitleLabel 변수
+// - Landsat LST 중앙값과 반경 3km라는 분석조건을 안내하는 보조 라벨
+// - titleLabel보다 작은 글씨로 표시된다.
+// 두 번째 라벨은 자료 처리 방식과 공간 범위를 설명한다.
+var subtitleLabel = ui.Label({
+
+  value:
+    'Landsat LST 중앙값 | 광주연구원 반경 3km',
+
+  style: {
+    fontSize: '12px',
+    margin: '4px 0 0 0'
+  }
+
+});
+
+
+// pointGuideLabel 변수
+// - 지도에 표시된 빨간 원이 광주연구원 위치임을 설명하는 안내 라벨
+// - 글자색 B00000은 어두운 빨간색 16진수 색상코드이다.
+// 세 번째 라벨은 빨간 표식의 의미를 알려준다.
+var pointGuideLabel = ui.Label({
+
+ value:
+  '● 빨간색 표식: 광주연구원 위치',
+
+  style: {
+    fontSize: '11px',
+    fontWeight: 'bold',
+    color: 'B00000',
+    margin: '5px 0 0 0'
+  }
+
+});
+
+
+// add()한 순서대로 패널 내부 위젯이 배치된다.
+titlePanel.add(
+  titleLabel
+);
+
+titlePanel.add(
+  subtitleLabel
+);
+
+titlePanel.add(
+  pointGuideLabel
+);
+
+
+// 완성된 제목 패널을 지도 화면에 추가한다.
+Map.add(
+  titlePanel
+);
+
+
+// -----------------------------------------------------
+// 23. LST 범례
+// -----------------------------------------------------
+// 범례는 lstVis의 색상과 온도값의 대응관계를 사용자가 읽도록 돕는다.
+// 색상 배열과 라벨 배열의 같은 인덱스가 하나의 범례 행을 이룬다.
+
+// legendPanel 변수
+// - 색상상자, 온도라벨, 결측안내를 순서대로 담는 범례용 UI 패널
+// - position: 'bottom-left'로 지도 왼쪽 아래에 고정한다.
+// 범례를 지도 왼쪽 아래에 배치한다.
+var legendPanel = ui.Panel({
+
+  style: {
+    position: 'bottom-left',
+    padding: '8px 15px'
+  }
+
+});
+
+
+// legendTitle 변수
+// - 범례가 지표면온도 단위 °C를 나타낸다는 제목 라벨
+var legendTitle = ui.Label({
+
+  value: '지표면 온도 LST (°C)',
+
+  style: {
+    fontWeight: 'bold',
+    fontSize: '14px',
+    margin: '0 0 6px 0'
+  }
+
+});
+
+
+legendPanel.add(
+  legendTitle
+);
+
+
+// legendColors 변수
+// - 범례에 표시할 7개 색상코드 배열
+// - 반드시 lstVis.palette와 개수와 순서가 같아야 지도색과 범례색이 일치한다.
+// lstVis.palette와 같은 순서를 유지해야 지도색과 범례색이 일치한다.
+var legendColors = [
+  '0000FF',
+  '00BFFF',
+  '00FFFF',
+  '00A600',
+  'FFFF00',
+  'FFA500',
+  'FF0000'
+];
+
+
+// legendLabels 변수
+// - legendColors의 각 색상 옆에 표시할 온도 문구 배열
+// - 같은 인덱스끼리 한 쌍이므로 두 배열의 길이와 순서를 맞춰야 한다.
+// 색상별 대표 온도 문구이다.
+// 연속형 색상표이므로 실제 픽셀값은 표시된 값 사이에서도 부드럽게 변한다.
+var legendLabels = [
+  '26°C',
+  '29°C',
+  '33°C',
+  '36°C',
+  '40°C',
+  '43°C',
+  '46°C 이상'
+];
+
+
+// 반복문은 색상 개수만큼 같은 형식의 범례 행을 자동으로 만든다.
+// i는 0부터 시작하며 각 반복이 끝날 때 1씩 증가한다.
+for (
+  var i = 0;
+  i < legendColors.length;
+  i++
+) {
+
+  // colorBox 변수
+  // - 현재 반복번호 i에 해당하는 색상을 배경으로 가진 빈 ui.Label
+  // - value는 비워 두고 padding으로 면적을 만들어 작은 색상상자처럼 보이게 한다.
+  // 글자 없는 Label의 배경색을 이용해 작은 색상 상자를 만든다.
+  var colorBox = ui.Label({
+
+    value: '',
+
+    style: {
+      backgroundColor: legendColors[i],
+      padding: '8px',
+      margin: '0 0 4px 0'
+    }
+
+  });
+
+
+  // valueLabel 변수
+  // - 현재 색상상자 옆에 표시할 온도 문구 ui.Label
+  // - legendLabels[i]에서 colorBox와 같은 인덱스의 문구를 가져온다.
+  // 현재 색상과 같은 인덱스의 온도 라벨을 만든다.
+  var valueLabel = ui.Label({
+
+    value: legendLabels[i],
+
+    style: {
+      margin: '0 0 4px 6px'
+    }
+
+  });
+
+
+  // legendRow 변수
+  // - colorBox와 valueLabel을 한 줄에 묶은 ui.Panel
+  // - Flow('horizontal')을 사용하므로 두 위젯이 왼쪽에서 오른쪽으로 배치된다.
+  // 색상 상자와 온도 라벨을 가로 방향으로 한 줄에 배치한다.
+  var legendRow = ui.Panel({
+
+    widgets: [
+      colorBox,
+      valueLabel
+    ],
+
+    layout: ui.Panel.Layout.Flow(
+      'horizontal'
+    )
+
+  });
+
+
+  // 완성된 한 행을 전체 범례 패널의 아래쪽에 추가한다.
+  legendPanel.add(
+    legendRow
+  );
+}
+
+
+// noDataLabel 변수
+// - 모든 입력영상에서 유효한 LST가 없었던 픽셀이 빈 영역으로 보인다는 설명 라벨
+// - 구름 마스킹, ST 자료 부재, ASTER 방사율 자료 공백 등에 따라 빈 픽셀이 생길 수 있다.
+// 유효값이 없는 투명 영역의 의미를 별도 문장으로 안내한다.
+var noDataLabel = ui.Label({
+
+  value:
+    '흰색·빈 영역: 유효한 LST 값이 없는 픽셀',
+
+  style: {
+    fontSize: '11px',
+    margin: '6px 0 0 0'
+  }
+
+});
+
+
+legendPanel.add(
+  noDataLabel
+);
+
+
+Map.add(
+  legendPanel
+);
+
+
+// -----------------------------------------------------
+// 24. 실행 결과 안내
+// -----------------------------------------------------
+// print()는 GEE Code Editor의 Console 탭에 확인 문구나 서버 계산 결과를 표시한다.
+// 분석 결과를 바꾸지는 않지만 영상 수, 포함기간, 빈 영역 원인을 점검하는 데 사용한다.
+
+print(
+  '실행 완료',
+  'Layers에서 대표연도별 LST 레이어를 켜고 끄면서 비교하세요.'
+);
+
+print(
+  '광주연구원 위치',
+  '빨간색 중심점으로 표시했습니다.'
+);
+
+print(
+  '2026년 자료 안내',
+  '2026년 6월 1일부터 현재까지 확보된 Landsat 8/9 영상만 자동 포함됩니다.'
+);
+
+print(
+  '빈 영역 안내',
+  '완화된 마스킹 이후에도 모든 영상에서 유효한 LST 값이 없는 픽셀은 투명하게 표시됩니다.'
+);
+
+
+// =====================================================
+// 최종 출력
+//
+// Console
+// - 대표기간별 영상 개수
+// - 2024, 2025, 2026 영상 개수
+//
+// Layers
+// - 1985, 1995, 2005, 2015, 2025 LST
+// - 반경 3km 연구지역
+// - 광주연구원 강조 표식
+//
+// 광주연구원 표식
+// - 검은색 외곽
+// - 노란색 내부 원
+// - 빨간색 중심점
+// =====================================================
