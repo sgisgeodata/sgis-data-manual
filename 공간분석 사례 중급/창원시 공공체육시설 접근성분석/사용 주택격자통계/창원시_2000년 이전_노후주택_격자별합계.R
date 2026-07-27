@@ -5,7 +5,7 @@ library(readr)
 # 1. 경로 및 파일 설정
 # ------------------------------------------------------------
 
-folder_path <- "C:/sgis/창원시 공공체육시설 접근성분석"
+folder_path <- "C:/Users/user/Documents/GitHub/sgis-data-manual_new/공간분석 사례 중급/창원시 공공체육시설 접근성분석/사용 주택격자통계"
 
 file_names <- c(
   "2024년_주택_라라_1K.csv",
@@ -84,7 +84,7 @@ cat("전체 노후주택 수:", sum(old_house_sum$X4_합, na.rm = TRUE), "\n")
 
 output_path <- file.path(
   folder_path,
-  "2024년_노후주택_2000년이전_격자별합계_1K.csv"
+  "2024년_노후주택_2000년이전.csv"
 )
 
 write_excel_csv(
