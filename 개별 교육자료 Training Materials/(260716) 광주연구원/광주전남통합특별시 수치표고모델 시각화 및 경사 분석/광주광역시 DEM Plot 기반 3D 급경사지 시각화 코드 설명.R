@@ -11,28 +11,6 @@
 
 
 # 0. 패키지 설치 및 불러오기 ---------------------------------
-#
-# R에서 공간자료와 HTML 지도를 다루기 위해 필요한 확장 패키지를 준비한다.
-#
-# terra
-#   - DEM과 같은 래스터 자료를 읽고, 자르고, 마스킹하고, 집계한다.
-#   - 주요 함수: rast(), crop(), mask(), aggregate(), as.polygons(), extract()
-#
-# sf
-#   - 시군구 경계와 같은 벡터 공간자료를 읽고 좌표계를 변환한다.
-#   - 주요 함수: st_read(), st_transform(), st_make_valid(), st_coordinates()
-#
-# dplyr
-#   - 행과 열을 선택하거나 새 변수를 만들고 자료를 결합한다.
-#   - 주요 함수: filter(), mutate(), select(), distinct(), bind_rows()
-#
-# jsonlite
-#   - R의 리스트와 데이터프레임을 JavaScript가 읽을 수 있는 JSON으로 변환한다.
-#   - 주요 함수: toJSON()
-#
-# htmltools
-#   - HTML 관련 객체와 문자를 다루는 패키지이다.
-#   - 이 코드에서는 직접 호출이 많지는 않지만 HTML 제작 환경을 함께 준비한다.
 
 # 사용할 패키지 이름을 문자 벡터로 만든다.
 # c()는 여러 값을 하나의 벡터로 묶는 함수이다.
@@ -61,6 +39,28 @@ library(sf)
 library(dplyr)
 library(jsonlite)
 library(htmltools)
+
+# 패키지 설명
+# 
+# terra
+#   - DEM과 같은 래스터 자료를 읽고, 자르고, 마스킹하고, 집계한다.
+#   - 주요 함수: rast(), crop(), mask(), aggregate(), as.polygons(), extract()
+#
+# sf
+#   - 시군구 경계와 같은 벡터 공간자료를 읽고 좌표계를 변환한다.
+#   - 주요 함수: st_read(), st_transform(), st_make_valid(), st_coordinates()
+#
+# dplyr
+#   - 행과 열을 선택하거나 새 변수를 만들고 자료를 결합한다.
+#   - 주요 함수: filter(), mutate(), select(), distinct(), bind_rows()
+#
+# jsonlite
+#   - R의 리스트와 데이터프레임을 JavaScript가 읽을 수 있는 JSON으로 변환한다.
+#   - 주요 함수: toJSON()
+#
+# htmltools
+#   - HTML 관련 객체와 문자를 다루는 패키지이다.
+#   - 이 코드에서는 직접 호출이 많지는 않지만 HTML 제작 환경을 함께 준비한다.
 
 
 # 1. 경로 설정 -------------------------------------------------
