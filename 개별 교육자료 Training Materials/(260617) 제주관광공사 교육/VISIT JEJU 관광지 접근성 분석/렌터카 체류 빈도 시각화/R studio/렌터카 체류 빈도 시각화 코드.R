@@ -1,10 +1,7 @@
 # ============================================================
 # 제주 렌터카 체류빈도 시각화
-#
-# 1. 2021년 합산 체류빈도 CSV를 불러와 50m 격자별 체류빈도를 정리한다.
-# 2. VISIT JEJU 여행장소 CSV의 위도/경도 정보를 이용해 관광지 위치를 준비한다.
-# 3. 체류빈도 격자와 관광지 핀을 함께 표시한 확대/축소 가능한 HTML 지도를 만든다.
 # ============================================================
+
 
 # 0. 패키지 설치 및 불러오기 -----------------------------------
 
@@ -19,7 +16,9 @@ packages <- c(
   "magrittr"
 )
 
-new_packages <- packages[!packages %in% installed.packages()[, "Package"]]
+new_packages <- packages[
+  !packages %in% installed.packages()[, "Package"]
+]
 
 if (length(new_packages) > 0) {
   install.packages(new_packages)
@@ -39,43 +38,127 @@ library(magrittr)
 
 base_dir <- "C:/Users/user/Desktop/제주"
 
-stay_file <- file.path(base_dir, "체류빈도_2021_합산.csv")
+stay_file <- file.path(
+  base_dir,
+  "체류빈도_2021_합산.csv"
+)
+
 place_file <- file.path(
   base_dir,
   "제주관광공사_제주관광정보시스템(VISIT JEJU)_여행장소.csv"
 )
 
-out_html <- file.path(base_dir, "제주_렌터카_체류빈도_시각화.html")
-out_tif  <- file.path(base_dir, "제주_렌터카_체류빈도_50m.tif")
+out_html <- file.path(
+  base_dir,
+  "제주_렌터카_체류빈도_시각화.html"
+)
+
+out_tif <- file.path(
+  base_dir,
+  "제주_렌터카_체류빈도_50m.tif"
+)
+
+if (!file.exists(stay_file)) {
+  stop("체류빈도 파일을 찾을 수 없습니다:\n", stay_file)
+}
+
+if (!file.exists(place_file)) {
+  stop("여행장소 파일을 찾을 수 없습니다:\n", place_file)
+}
 
 
 # 2. 체류빈도 합산 CSV 읽기 ------------------------------------
 
-grid_data <- fread(stay_file, encoding = "UTF-8")
+grid_data <- fread(
+  stay_file,
+  encoding = "UTF-8"
+)
+
+required_grid_columns <- c(
+  "j_50_cd",
+  "체류빈도_2021",
+  "left",
+  "right",
+  "bottom",
+  "top",
+  "xcoord",
+  "ycoord"
+)
+
+missing_grid_columns <- setdiff(
+  required_grid_columns,
+  names(grid_data)
+)
+
+if (length(missing_grid_columns) > 0) {
+  stop(
+    "체류빈도 CSV에 다음 열이 없습니다:\n",
+    paste(missing_grid_columns, collapse = ", ")
+  )
+}
 
 grid_data[, j_50_cd := as.character(j_50_cd)]
 grid_data[, stay_total := as.numeric(체류빈도_2021)]
 grid_data[is.na(stay_total), stay_total := 0]
 
+coordinate_columns <- c(
+  "left",
+  "right",
+  "bottom",
+  "top",
+  "xcoord",
+  "ycoord"
+)
+
+grid_data[
+  ,
+  (coordinate_columns) := lapply(.SD, as.numeric),
+  .SDcols = coordinate_columns
+]
+
+valid_grid_rows <- complete.cases(
+  grid_data[, ..coordinate_columns]
+)
+
+invalid_grid_count <- sum(!valid_grid_rows)
+
+if (invalid_grid_count > 0) {
+  warning(
+    invalid_grid_count,
+    "개의 격자에서 좌표 결측값이 발견되어 제외됩니다."
+  )
+}
+
+grid_data <- grid_data[valid_grid_rows]
+
+if (nrow(grid_data) == 0) {
+  stop("사용할 수 있는 격자 데이터가 없습니다.")
+}
+
 cat("격자 수:", nrow(grid_data), "\n")
-cat("체류빈도 0 초과 격자 수:", sum(grid_data$stay_total > 0), "\n")
-cat("최대 체류빈도:", max(grid_data$stay_total, na.rm = TRUE), "\n")
+cat(
+  "체류빈도 0 초과 격자 수:",
+  sum(grid_data$stay_total > 0),
+  "\n"
+)
+cat(
+  "최대 체류빈도:",
+  max(grid_data$stay_total, na.rm = TRUE),
+  "\n"
+)
 
 
-# 3. 색상 구간 설정 --------------------------------------------
-
-stay_breaks <- c(0, 10, 25, 50, 100, Inf)
+# 3. 체류빈도 구간 및 색상 설정 -------------------------------
 
 stay_labels <- c(
   "0회",
-  "~10회",
-  "~25회",
-  "~50회",
-  "~1000회",
-  "100회 이상"
+  "1~10회",
+  "11~50회",
+  "51~100회",
+  "101~250회",
+  "251회 이상"
 )
 
-# 양수 5단계용 색상
 stay_colors <- c(
   "#fff7bc",
   "#fee391",
@@ -84,34 +167,31 @@ stay_colors <- c(
   "#d7301f"
 )
 
-# 0은 NA 처리하고, 양수만 단계값으로 변환
-grid_data[, stay_class := fifelse(
-  stay_total == 0, NA_real_,
-  fifelse(stay_total <= 10, 1,
-          fifelse(stay_total <= 50, 2,
-                  fifelse(stay_total <= 100, 3,
-                          fifelse(stay_total <= 250, 4, 5)
-                  )
-          )
-  )
+grid_data[, stay_class := fcase(
+  stay_total == 0,   NA_real_,
+  stay_total <= 10,  1,
+  stay_total <= 50,  2,
+  stay_total <= 100, 3,
+  stay_total <= 250, 4,
+  default = 5
 )]
 
 cat("\n고정 구간:\n")
-cat(" - 0회 (투명)\n")
+cat(" - 0회: 투명\n")
 cat(" - 1~10회\n")
-cat(" - 11~25회\n")
-cat(" - 26~50회\n")
+cat(" - 11~50회\n")
 cat(" - 51~100회\n")
-cat(" - 100회 이상\n")
+cat(" - 101~250회\n")
+cat(" - 251회 이상\n")
 
 
-# 4. 50m 래스터 만들기 -----------------------------------------
+# 4. 50m 체류빈도 래스터 만들기 -------------------------------
 
 stay_raster <- rast(
-  xmin = min(grid_data$left),
-  xmax = max(grid_data$right),
-  ymin = min(grid_data$bottom),
-  ymax = max(grid_data$top),
+  xmin = min(grid_data$left, na.rm = TRUE),
+  xmax = max(grid_data$right, na.rm = TRUE),
+  ymin = min(grid_data$bottom, na.rm = TRUE),
+  ymax = max(grid_data$top, na.rm = TRUE),
   resolution = 50,
   crs = "EPSG:5179"
 )
@@ -120,12 +200,24 @@ names(stay_raster) <- "stay_class"
 
 raster_cells <- terra::cellFromXY(
   stay_raster,
-  as.matrix(grid_data[, .(xcoord, ycoord)])
+  as.matrix(
+    grid_data[, .(xcoord, ycoord)]
+  )
 )
 
-stay_raster[raster_cells] <- grid_data$stay_class
+valid_raster_cells <- !is.na(raster_cells)
 
-# 0회는 이미 NA라서 실제로 그려지지 않음 = 진짜 투명
+if (sum(!valid_raster_cells) > 0) {
+  warning(
+    sum(!valid_raster_cells),
+    "개의 격자가 래스터 범위를 벗어나 제외됩니다."
+  )
+}
+
+stay_raster[
+  raster_cells[valid_raster_cells]
+] <- grid_data$stay_class[valid_raster_cells]
+
 writeRaster(
   stay_raster,
   out_tif,
@@ -136,7 +228,6 @@ writeRaster(
 
 stay_raster_leaflet <- raster::raster(stay_raster)
 
-# class 값 1~5를 색으로 연결
 stay_palette <- colorFactor(
   palette = stay_colors,
   domain = c(1, 2, 3, 4, 5),
@@ -146,15 +237,41 @@ stay_palette <- colorFactor(
 
 # 5. VISIT JEJU 여행장소 읽기 ----------------------------------
 
-place_data <- fread(place_file, encoding = "UTF-8")
+place_data <- fread(
+  place_file,
+  encoding = "UTF-8"
+)
+
+required_place_columns <- c(
+  "장소명",
+  "위도",
+  "경도",
+  "도로명주소",
+  "지번주소"
+)
+
+missing_place_columns <- setdiff(
+  required_place_columns,
+  names(place_data)
+)
+
+if (length(missing_place_columns) > 0) {
+  stop(
+    "여행장소 CSV에 다음 열이 없습니다:\n",
+    paste(missing_place_columns, collapse = ", ")
+  )
+}
 
 place_data[, lat := as.numeric(위도)]
 place_data[, lon := as.numeric(경도)]
 
 place_data <- place_data[
-  !is.na(lat) & !is.na(lon) &
-    lat >= 33.0 & lat <= 33.7 &
-    lon >= 126.0 & lon <= 127.2
+  !is.na(lat) &
+    !is.na(lon) &
+    lat >= 33.0 &
+    lat <= 33.7 &
+    lon >= 126.0 &
+    lon <= 127.2
 ]
 
 clean_text <- function(text_value) {
@@ -169,25 +286,36 @@ place_data[, popup := paste0(
   "지번주소: ", clean_text(지번주소)
 )]
 
-cat("제주 지역 여행장소 핀 수:", nrow(place_data), "\n")
+cat(
+  "제주 지역 여행장소 핀 수:",
+  nrow(place_data),
+  "\n"
+)
 
 
-# 6. 지도 범위 계산 --------------------------------------------
+# 6. 지도 초기 표시 범위 계산 ----------------------------------
 
-grid_bbox_5179 <- st_as_sfc(st_bbox(
-  c(
-    xmin = min(grid_data$left),
-    ymin = min(grid_data$bottom),
-    xmax = max(grid_data$right),
-    ymax = max(grid_data$top)
-  ),
-  crs = st_crs(5179)
-))
+grid_bbox_5179 <- st_as_sfc(
+  st_bbox(
+    c(
+      xmin = min(grid_data$left, na.rm = TRUE),
+      ymin = min(grid_data$bottom, na.rm = TRUE),
+      xmax = max(grid_data$right, na.rm = TRUE),
+      ymax = max(grid_data$top, na.rm = TRUE)
+    ),
+    crs = st_crs(5179)
+  )
+)
 
-grid_bbox_4326 <- st_bbox(st_transform(grid_bbox_5179, 4326))
+grid_bbox_4326 <- st_bbox(
+  st_transform(
+    grid_bbox_5179,
+    4326
+  )
+)
 
 
-# 7. 큰 범례/레이어 선택창 CSS ---------------------------------
+# 7. 지도 CSS 설정 ---------------------------------------------
 
 map_css <- HTML("
   .leaflet-control-layers {
@@ -289,22 +417,58 @@ map_css <- HTML("
 ")
 
 
-# 8. 사용자 정의 범례 HTML -------------------------------------
+# 8. 사용자 정의 범례 만들기 -----------------------------------
 
-legend_html <- HTML(paste0(
-  "<div class='custom-legend'>",
-  "<div class='legend-title'>2021년 합산 체류빈도</div>",
-  
-  # 0회는 '투명'을 보여주기 위해 흰색 박스 + 점선 테두리
-  "<div class='legend-row'><span class='legend-box' style='background: transparent; border: 2px dashed #999;'></span>0회</div>",
-  
-  "<div class='legend-row'><span class='legend-box' style='background:", stay_colors[1], ";'></span>~10회</div>",
-  "<div class='legend-row'><span class='legend-box' style='background:", stay_colors[2], ";'></span>~50회</div>",
-  "<div class='legend-row'><span class='legend-box' style='background:", stay_colors[3], ";'></span>~100회</div>",
-  "<div class='legend-row'><span class='legend-box' style='background:", stay_colors[4], ";'></span>~250회</div>",
-  "<div class='legend-row'><span class='legend-box' style='background:", stay_colors[5], ";'></span>251회 이상</div>",
-  "</div>"
-))
+legend_html <- HTML(
+  paste0(
+    "<div class='custom-legend'>",
+    "<div class='legend-title'>2021년 합산 체류빈도</div>",
+
+    "<div class='legend-row'>",
+    "<span class='legend-box' ",
+    "style='background:transparent; border:2px dashed #999;'>",
+    "</span>",
+    stay_labels[1],
+    "</div>",
+
+    "<div class='legend-row'>",
+    "<span class='legend-box' style='background:",
+    stay_colors[1],
+    ";'></span>",
+    stay_labels[2],
+    "</div>",
+
+    "<div class='legend-row'>",
+    "<span class='legend-box' style='background:",
+    stay_colors[2],
+    ";'></span>",
+    stay_labels[3],
+    "</div>",
+
+    "<div class='legend-row'>",
+    "<span class='legend-box' style='background:",
+    stay_colors[3],
+    ";'></span>",
+    stay_labels[4],
+    "</div>",
+
+    "<div class='legend-row'>",
+    "<span class='legend-box' style='background:",
+    stay_colors[4],
+    ";'></span>",
+    stay_labels[5],
+    "</div>",
+
+    "<div class='legend-row'>",
+    "<span class='legend-box' style='background:",
+    stay_colors[5],
+    ";'></span>",
+    stay_labels[6],
+    "</div>",
+
+    "</div>"
+  )
+)
 
 
 # 9. Leaflet HTML 지도 만들기 ----------------------------------
@@ -317,14 +481,17 @@ jeju_map <- leaflet(
     preferCanvas = TRUE
   )
 ) %>%
+
   addProviderTiles(
     providers$CartoDB.Positron,
     group = "밝은 지도"
   ) %>%
+
   addProviderTiles(
     providers$Esri.WorldImagery,
     group = "위성지도"
   ) %>%
+
   addRasterImage(
     stay_raster_leaflet,
     colors = stay_palette,
@@ -334,6 +501,7 @@ jeju_map <- leaflet(
     method = "ngb",
     maxBytes = Inf
   ) %>%
+
   addCircleMarkers(
     data = place_data,
     lng = ~lon,
@@ -348,25 +516,41 @@ jeju_map <- leaflet(
     group = "여행장소 핀",
     clusterOptions = markerClusterOptions()
   ) %>%
+
   addControl(
     html = legend_html,
     position = "bottomright"
   ) %>%
+
   addScaleBar(
     position = "bottomleft",
-    options = scaleBarOptions(metric = TRUE, imperial = FALSE)
+    options = scaleBarOptions(
+      metric = TRUE,
+      imperial = FALSE
+    )
   ) %>%
+
   addLayersControl(
-    baseGroups = c("밝은 지도", "위성지도"),
-    overlayGroups = c("렌터카 체류빈도 50m 격자", "여행장소 핀"),
-    options = layersControlOptions(collapsed = FALSE)
+    baseGroups = c(
+      "밝은 지도",
+      "위성지도"
+    ),
+    overlayGroups = c(
+      "렌터카 체류빈도 50m 격자",
+      "여행장소 핀"
+    ),
+    options = layersControlOptions(
+      collapsed = FALSE
+    )
   ) %>%
+
   fitBounds(
     lng1 = as.numeric(grid_bbox_4326["xmin"]),
     lat1 = as.numeric(grid_bbox_4326["ymin"]),
     lng2 = as.numeric(grid_bbox_4326["xmax"]),
     lat2 = as.numeric(grid_bbox_4326["ymax"])
   ) %>%
+
   prependContent(
     tags$head(
       tags$style(map_css)
@@ -374,7 +558,7 @@ jeju_map <- leaflet(
   )
 
 
-# 10. HTML 저장 ------------------------------------------------
+# 10. HTML 지도 저장 -------------------------------------------
 
 htmlwidgets::saveWidget(
   widget = jeju_map,
@@ -383,8 +567,14 @@ htmlwidgets::saveWidget(
   title = "제주 렌터카 체류빈도 시각화"
 )
 
-browseURL(normalizePath(out_html, winslash = "/", mustWork = FALSE))
+browseURL(
+  normalizePath(
+    out_html,
+    winslash = "/",
+    mustWork = FALSE
+  )
+)
 
-cat("\n완료\n")
+cat("\n분석이 완료되었습니다.\n")
 cat("HTML 지도:", out_html, "\n")
-cat("50m raster:", out_tif, "\n")
+cat("50m 체류빈도 래스터:", out_tif, "\n")
