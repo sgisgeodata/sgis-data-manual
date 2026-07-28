@@ -1,12 +1,5 @@
 # ============================================================
 # 광주광역시 90m DEM 기반 3D 지형 및 급경사지 시각화
-#
-# 목표
-#
-# - 광주광역시 경계에 맞춰 DEM을 가공하고, 지형의 고저 차이를 3D로 표현한다.
-# - 배경지도 위에 입체 지형을 중첩하여 광주 내 산지·고지대 분포를 직관적으로 확인한다.
-# - 급경사지의 하향 흐름 방향을 화살표로 표시하여 경사 이동 방향을 시각화한다.
-# - 배경지도, 지형 표현 방식, 화살표 표시 기준을 선택할 수 있는 HTML 지도를 제작한다.
 # ============================================================
 
 
@@ -46,24 +39,17 @@ temp_geojson <- file.path(base_dir, "temp_gwangju_dem_3d.geojson")
 
 # 2. 시각화 옵션 -----------------------------------------------
 
-# 높이 과장값
 z_exaggeration <- 3.5
 
-# 3D 지형 표현용 DEM 셀 수 제한
 target_cells <- 12000
 
-# 화살표 최소 후보 기준
-# HTML 버튼에서 15/20/25/30을 선택할 수 있도록 최소 후보는 15도 이상으로 생성
 arrow_min_degree <- 15
 
-# 화살촉 크기
 arrow_head_length_meter <- 32
 arrow_head_width_meter <- 22
 
-# 화살표를 윗면에 거의 붙이기 위한 높이 보정
 arrow_lift <- 4
 
-# 경계선이 DEM에 묻히지 않도록 띄우는 높이
 boundary_lift <- 220
 
 
@@ -86,8 +72,6 @@ print(names(sigungu))
 
 # 4. 광주광역시 5개 구 추출 ------------------------------------
 
-# bnd_sigungu_00_2025_2Q 기준
-# 24010 동구, 24020 서구, 24030 남구, 24040 북구, 24050 광산구
 
 gwangju <- sigungu %>%
   mutate(SIGUNGU_CD = as.character(SIGUNGU_CD)) %>%
@@ -118,18 +102,15 @@ dem_gwangju[dem_gwangju < -100] <- NA
 
 # 6. DEM 해상도 조정 -------------------------------------------
 
-# 중요:
-# 화면에 보이는 3D 블록과 화살표 기준을 일치시키기 위해
-# dem_plot 기준으로 화살표도 계산한다.
 
 if (ncell(dem_gwangju) > target_cells) {
   fact_value <- ceiling(sqrt(ncell(dem_gwangju) / target_cells))
 
- cat("원본 DEM 셀 수:", ncell(dem_gwangju), "\n")
- cat("목표 DEM Plot 셀 수:", target_cells, "\n")
- cat("집계 계수 fact_value:", fact_value, "\n")
- cat("DEM Plot 1칸 = 원본 90m 격자", fact_value, "x", fact_value, "개\n")
- cat("DEM Plot 1칸 실제 크기 약:", fact_value * 90, "m x", fact_value * 90, "m\n")
+  cat("원본 DEM 셀 수:", ncell(dem_gwangju), "\n")
+  cat("목표 DEM Plot 셀 수:", target_cells, "\n")
+  cat("집계 계수 fact_value:", fact_value, "\n")
+  cat("DEM Plot 1칸 = 원본 90m 격자", fact_value, "x", fact_value, "개\n")
+  cat("DEM Plot 1칸 실제 크기 약:", fact_value * 90, "m x", fact_value * 90, "m\n")
   
   dem_plot <- aggregate(
     dem_gwangju,
@@ -282,9 +263,6 @@ for (r in seq_len(nr)) {
     sign_x <- sign(dc_best)
     sign_y <- -sign(dr_best)
     
-    # 시작점 계산
-    # 선 접촉: A의 B쪽 윗면 모서리 중심
-    # 점 접촉: A의 B쪽 윗면 꼭짓점
     if (abs(dc_best) + abs(dr_best) == 1) {
       if (dc_best != 0) {
         x_start <- x_a + sign_x * res_x / 2
@@ -374,8 +352,6 @@ if (length(arrow_records) == 0) {
 
 arrow_df <- bind_rows(arrow_records)
 
-# 정확한 중복 제거:
-# 시작점과 도착점이 완전히 같은 동일 화살표만 제거
 arrow_df <- arrow_df %>%
   mutate(
     arrow_key = paste(
@@ -392,7 +368,6 @@ arrow_df <- arrow_df %>%
 cat("화살표 후보 전체 개수:", nrow(arrow_df), "개\n")
 
 
-# 8-1. 화살표 좌표를 위경도로 변환 -------------------------------
 
 make_point_4326 <- function(x, y) {
   temp_sf <- st_as_sf(
@@ -412,7 +387,6 @@ head_left_xy <- make_point_4326(arrow_df$x_head_left, arrow_df$y_head_left)
 head_right_xy <- make_point_4326(arrow_df$x_head_right, arrow_df$y_head_right)
 
 
-# 8-2. 화살표 몸통 데이터 생성 ---------------------------------
 
 arrow_data <- lapply(seq_len(nrow(arrow_df)), function(i) {
   list(
@@ -427,7 +401,6 @@ arrow_data <- lapply(seq_len(nrow(arrow_df)), function(i) {
 arrow_json <- toJSON(arrow_data, auto_unbox = TRUE, digits = 8)
 
 
-# 8-3. 3D 화살촉 데이터 생성 -----------------------------------
 
 arrow_head_path_data <- list()
 
@@ -530,7 +503,6 @@ html_code <- paste0(
     background: #f5f5f5;
   }
 
-  #title {
     position: absolute;
     top: 12px;
     left: 50%;
@@ -547,14 +519,12 @@ html_code <- paste0(
     white-space: nowrap;
   }
 
-  #subtitle {
     font-size: 14px;
     font-weight: 500;
     color: #444;
     margin-top: 4px;
   }
 
-  #map {
     position: absolute;
     top: 0;
     left: 0;
@@ -562,7 +532,6 @@ html_code <- paste0(
     bottom: 0;
   }
 
-  #controls {
     position: absolute;
     top: 92px;
     right: 18px;
