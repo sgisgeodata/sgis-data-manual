@@ -1,0 +1,1 @@
+sum("age65plus")  # 집계 > sum
