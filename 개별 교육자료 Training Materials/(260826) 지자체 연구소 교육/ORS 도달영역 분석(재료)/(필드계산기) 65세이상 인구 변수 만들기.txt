@@ -1,8 +1,0 @@
-coalesce(to_int("age65_69_field_4"), 0) +
-coalesce(to_int("age70_74_field_4"), 0) +
-coalesce(to_int("age75_79_field_4"), 0) +
-coalesce(to_int("age80_84_field_4"), 0) +
-coalesce(to_int("age85_89_field_4"), 0) +
-coalesce(to_int("age90_94_field_4"), 0) +
-coalesce(to_int("age95_99_field_4"), 0) +
-coalesce(to_int("age100plus_field_4"), 0)
