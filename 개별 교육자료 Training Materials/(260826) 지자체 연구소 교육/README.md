@@ -12,7 +12,7 @@
 #### R Studio 설치
 
 R, R Studio, RTools를 기본 옵션으로 차례대로 설치해주세요.  
-① [R 다운로드 사이트](https://cran.r-project.org/bin/windows/base/)에서 [R-4.4.3](https://cran.r-project.org/bin/windows/base/old/4.4.3/R-4.4.3-win.exe)을 내려받아서 설치합니다.  
+① [R 다운로드 사이트](https://cran.r-project.org/bin/windows/base/) > Previous releases에서 [R-4.4.3](https://cran.r-project.org/bin/windows/base/old/4.4.3/R-4.4.3-win.exe)을 내려받아서 설치합니다.  
 R-4.6.1 버전이 최신 버전이지만 시각화 패키지 연동이 안정적인 4.4.3 버전으로 실습하겠습니다.  
 ② [R Studio 다운로드 사이트](https://docs.posit.co/ide/user/#rstudio-ide-oss-downloads)에서 Windows 11용 최신 버전(exe 실행파일)을 설치합니다.  
 ③ [RTools 4.4](https://cran.r-project.org/bin/windows/Rtools/rtools44/rtools.html)(Rtools44 installer)를 내려받아서 설치합니다.
