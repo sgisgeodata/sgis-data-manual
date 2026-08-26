@@ -1,9 +1,9 @@
 ## 지자체 연구소 공간분석 교육
 
-### 실습 준비사항
+### 실습용 프로그램 설치
 
 교육기간 실습을 위한 프로그램과 실습용 자료는 전산교육실 PC에 준비됩니다.  
-개인 노트북을 이용하거나 교육 후 실습을 위한 실습 준비사항을 참고로 안내해드립니다.
+개인 노트북을 이용하거나 교육 후 실습을 위한 프로그램 설치방법을 참고로 안내해드립니다.
 
 #### QGIS 설치
 
@@ -17,3 +17,17 @@ R-4.6.1 버전이 최신 버전이지만 시각화 패키지 연동이 안정적
 ② [R Studio 다운로드 사이트](https://docs.posit.co/ide/user/#rstudio-ide-oss-downloads)에서 Windows 11용 최신 버전(exe 실행파일)을 설치합니다.  
 ③ [RTools 4.4](https://cran.r-project.org/bin/windows/Rtools/rtools44/rtools.html)(Rtools44 installer)를 내려받아서 설치합니다.
 
+### 실습용 파일 복사 위치
+
+#### 실습용 파일을 C:\SGIS 폴더 아래 분석도구별 폴더에 복사해주세요.   
+
+C:\SGIS\QGIS\전국 교육서비스업 행정동별 분석   
+C:\SGIS\QGIS\부산시 인구 격자별 분석   
+C:\SGIS\QGIS\학원 교습소 공공데이터 공간 집계   
+C:\SGIS\QGIS\ORS 도달영역 분석   
+C:\SGIS\QGIS\전국 교육서비스업 행정동별 분석(PyQGIS)   
+
+C:\SGIS\R\서울시 청년인구 격자별 순위 분석   
+C:\SGIS\R\제주시 고령인구 비율 격자별 분석   
+
+C:\SGIS\Python\서울시 인구 행정동별 분석   
