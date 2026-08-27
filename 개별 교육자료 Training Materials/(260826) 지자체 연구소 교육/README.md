@@ -31,3 +31,12 @@ C:\SGIS\R\서울시 청년인구 격자별 순위 분석
 C:\SGIS\R\제주시 고령인구 비율 격자별 분석   
 
 C:\SGIS\Python\서울시 인구 행정동별 분석   
+
+### 교육 참고자료
+
+ [교육 참고자료](https://github.com/sgisgeodata/sgis-data-manual/tree/main/%EA%B0%9C%EB%B3%84%20%EA%B5%90%EC%9C%A1%EC%9E%90%EB%A3%8C%20Training%20Materials/(260826)%20%EC%A7%80%EC%9E%90%EC%B2%B4%20%EC%97%B0%EA%B5%AC%EC%86%8C%20%EA%B5%90%EC%9C%A1/%EA%B5%90%EC%9C%A1%20%EC%B0%B8%EA%B3%A0%EC%9E%90%EB%A3%8C) 폴더에 실습교육 관련 참고자료가 있습니다.   
+
+SGIS 회원가입 안내.pdf   
+온라인 질의응답 방법(slido.com).pdf   
+DownGit을 활용한 GitHub 폴더별 다운로드 방법.pdf   
+고흥군 병원 지역보건의료기관 접근성 분석(ORS 활용).pdf   
