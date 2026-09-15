@@ -13,7 +13,6 @@ library(ggplot2)      # ggplot2 시각화: ggplot() 등
 prj_dir <- "C:/SGIS/R/서울시 청년인구 격자별 순위 분석"
 
 
-
 # 2. 서울시 경계와 겹치는 격자 경계 만들기
 
 # 서울시 시도 경계
@@ -45,40 +44,45 @@ map_intersects # 지도를 'Plots' 탭에서 확인
 
 file_path <- paste(prj_dir, "2024년_인구_다사_1K.csv", sep="/")
 stat <- read.csv(file=file_path, header=FALSE, fileEncoding="CP949")
-# 한글을 포함한 통계 파일의 인코딩을 'CP949'로 지정
 
 colnames(stat) <- c("BASE_YEAR", "GRID_CODE", "STAT_CODE", "STAT_VAL")
-# 통계파일의 컬럼명 지정
 
-head(stat) # 통계파일의 컬럼명과 데이터 확인
+# STAT_VAL이 문자형이면 숫자로 변환
+stat$STAT_VAL <- as.numeric(stat$STAT_VAL)
 
-sort(unique(stat[ , "STAT_CODE"]))
-# 통계코드 종류 확인(5세연령 인구, 연령그룹 인구, 총인구 등)
+# 통계코드 확인
+sort(unique(stat$STAT_CODE))
 
-stat_young <- stat[stat$STAT_CODE=="in_age_005", ] # in_grp_005 또는 in_age_005 
-# 청년인구 통계를 별도로 저장
+# 청년인구 합산(in_age_004(15세이상 19세이하) ~ in_age_007(30세이상 34세이하)) 
+stat_young <- stat %>%
+  filter(STAT_CODE %in% c("in_age_004", "in_age_005", "in_age_006", "in_age_007")) %>%
+  group_by(BASE_YEAR, GRID_CODE) %>%
+  summarise(STAT_VAL = sum(STAT_VAL))
 
-sort(unique(stat_young[ , "STAT_CODE"]))
-# 청년인구('in_grp_005' 컬럼) 저장 확인
+# 확인
+head(stat_young)
 
 
 # 4. 경계와 통계 조인하고 순위 계산하기
 
-# 경계와 통계 데이터셋과 key 컬럼 지정
-join <- merge(x=bord_intersects, y=stat_young,
-              by.x="GRID_CD", by.y="GRID_CODE", all.x=TRUE)
-# all.x=TRUE: 통계값(y)이 매칭되지 않아도 경계(x)는 남기기
+join <- merge(x = bord_intersects, y = stat_young, 
+              by.x = "GRID_CD", by.y = "GRID_CODE", all.x = TRUE)
 
-join # 조인 결과 확인
+# 조인 결과 확인
+head(join)
+colnames(join)
 
-# 불필요한 컬럼 정리, 기준연도(BASE_YEAR) NULL값 채우기
-join <- join %>% select(-BASE_DATE, -SIDO_CD, -SIDO_NM, -STAT_CODE)
+# 불필요한 컬럼 정리
+join <- join %>%
+  select(-BASE_DATE, -SIDO_CD, -SIDO_NM)
+
+# 기준연도
 join$BASE_YEAR <- "2024"
 
-# RANK(순위) 컬럼 추가
-join_rank <- join %>% mutate(RANK = min_rank(desc(STAT_VAL)))
+# 순위 계산
+join_rank <- join %>%
+  mutate(RANK = min_rank(desc(STAT_VAL)))
 
-# RANK 컬럼 추가 확인
 join_rank
 
 
@@ -109,8 +113,8 @@ map_topN # 지도 중간 결과 확인
 
 # 통계값의 구간 범위 컬럼 만들기
 join_rank$BREAKS <- 
-  cut(join_rank$STAT_VAL, breaks = c(1, 500, 1000, 3000, 5000, 7000),          # 수정
-    labels = c("1~500","500~1,000","1,000~3,000","3,000~5,000","5,000~7,000")) # 수정
+  cut(join_rank$STAT_VAL, breaks = c(1, 5000, 10000, 15000, 20000, 24000),          # 수정
+    labels = c("1~5,000","5,000~10,000","10,000~15,000","15,000~20,000","20,000~24,000")) # 수정
 
 map_all <- ggplot() +
   # 1. 격자 경계(전체 순위)
