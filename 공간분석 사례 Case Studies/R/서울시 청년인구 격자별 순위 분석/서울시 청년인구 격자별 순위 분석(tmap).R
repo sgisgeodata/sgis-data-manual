@@ -44,40 +44,45 @@ map_intersects # 지도를 'Plots' 탭에서 확인
 
 file_path <- paste(prj_dir, "2024년_인구_다사_1K.csv", sep="/")
 stat <- read.csv(file=file_path, header=FALSE, fileEncoding="CP949")
-# 한글을 포함한 통계 파일의 인코딩을 'CP949'로 지정
 
 colnames(stat) <- c("BASE_YEAR", "GRID_CODE", "STAT_CODE", "STAT_VAL")
-# 통계파일의 컬럼명 지정
 
-head(stat) # 통계파일의 컬럼명과 데이터 확인
+# STAT_VAL이 문자형이면 숫자로 변환
+stat$STAT_VAL <- as.numeric(stat$STAT_VAL)
 
-sort(unique(stat[ , "STAT_CODE"]))
-# 통계코드 종류 확인(5세연령 인구, 연령그룹 인구, 총인구 등)
+# 통계코드 확인
+sort(unique(stat$STAT_CODE))
 
-stat_young <- stat[stat$STAT_CODE=="in_age_005", ] # in_grp_005 또는 in_age_005 
-# 청년인구 통계를 별도로 저장
+# 청년인구 합산(in_age_004(15세이상 19세이하) ~ in_age_007(30세이상 34세이하)) 
+stat_young <- stat %>%
+  filter(STAT_CODE %in% c("in_age_004", "in_age_005", "in_age_006", "in_age_007")) %>%
+  group_by(BASE_YEAR, GRID_CODE) %>%
+  summarise(STAT_VAL = sum(STAT_VAL))
 
-sort(unique(stat_young[ , "STAT_CODE"]))
-# 컬럼 저장 확인
+# 확인
+head(stat_young)
 
 
 # 4. 경계와 통계 조인하고 순위 계산하기
 
-# 경계와 통계 데이터셋과 key 컬럼 지정
-join <- merge(x=bord_intersects, y=stat_young,
-                by.x="GRID_CD", by.y="GRID_CODE", all.x=TRUE)
-# all.x=TRUE: 통계값(y)이 매칭되지 않아도 경계(x)는 남기기
+join <- merge(x = bord_intersects, y = stat_young, 
+              by.x = "GRID_CD", by.y = "GRID_CODE", all.x = TRUE)
 
-join # 조인 결과 확인
+# 조인 결과 확인
+head(join)
+colnames(join)
 
-# 불필요한 컬럼 정리, 기준연도(BASE_YEAR) NULL값 채우기
-join <- join %>% select(-BASE_DATE, -SIDO_CD, -SIDO_NM, -STAT_CODE)
+# 불필요한 컬럼 정리
+join <- join %>%
+  select(-BASE_DATE, -SIDO_CD, -SIDO_NM)
+
+# 기준연도
 join$BASE_YEAR <- "2024"
 
-# RANK(순위) 컬럼 추가
-join_rank <- join %>% mutate(RANK = min_rank(desc(STAT_VAL)))
+# 순위 계산
+join_rank <- join %>%
+  mutate(RANK = min_rank(desc(STAT_VAL)))
 
-# RANK 컬럼 추가 확인
 join_rank
 
 
@@ -111,8 +116,8 @@ map_all <-
   tm_shape(join_rank) +
   tm_polygons(fill="STAT_VAL", lty="dotted", 
     fill.legend=tm_legend(title="격자별 청년인구(명)", position=c("left", "top")), 
-    fill.scale=tm_scale_intervals(breaks=c(1, 500, 1000, 3000, 5000, 7000),    # 수정
-      labels=c("1~500","500~1,000","1,000~3,000","3,000~5,000","5,000~7,000"), # 수정
+    fill.scale=tm_scale_intervals(breaks=c(1, 5000, 10000, 15000, 20000, 24000),   
+      labels=c("1~5,000","5,000~10,000","10,000~15,000","15,000~20,000","20,000~24,000"), 
       values=c("#FFFFB2","#FECC5C","#FD8D3C","#F03B20","#BD0026"), # 색상 코드 열거
       # values="brewer.yl_or_rd", # 또는 색상 파레트 지정
       value.na="white", label.na="")) +
@@ -126,8 +131,8 @@ map_all <-
     tm_text(text="RANK", col="white", size=0.6) +
   # 5. 제목과 레이아웃
   tm_title(text="2024년 서울시 청년인구 격자 순위") +
-  tm_layout(inner.margins=0.1, text.fontfamily = "Malgun Gothic")
-  
+  tm_layout(inner.margins=0.1)
+
 
 map_all  # 전체 맵을 'Plots' 탭에서 확인
 
