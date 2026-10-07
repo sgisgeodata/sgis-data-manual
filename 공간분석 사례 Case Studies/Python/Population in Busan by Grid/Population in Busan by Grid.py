@@ -25,6 +25,12 @@ print(stat_merged.info())  # base year(BASE_YEAR), grid code(GRID_CD),
 unique_stat_cd = stat_merged['STAT_CD'].unique()
 print(unique_stat_cd)
 
+# Filter only the total population('to_in_001') data
+stat_total=stat_merged[stat_merged['STAT_CD']=='to_in_001']
+# Check the unique values in the 'STAT_CD' column after filtering
+unique_stat_cd=stat_total['STAT_CD'].unique()
+print(unique_stat_cd)
+
 stat_total = stat_total[['GRID_CD', 'POP']]
 
 grid_intersects = grid_merged[grid_merged.geometry.intersects(bord_sido.geometry.union_all())]
@@ -72,8 +78,8 @@ for idx, row in bord_sgg.iterrows():
 ax.get_legend().set_bbox_to_anchor((0.5, -0.05))  # Adjust legend position
 ax.get_legend().set_title('Population (Persons)')  # Set legend title
 ax.set_title('Population in Busan by Grid', fontsize=16)  # Set map title
-ax.set_xtick([]) # Remove x-axis number and ticks
-ax.set_ytick([]) # Remove y-axis number and ticks
+ax.set_xticks([]) # Remove x-axis number and ticks
+ax.set_yticks([]) # Remove y-axis number and ticks
 
 # Layout adjustment and Display
 plt.tight_layout()  # Automatically adjusts the layout of graphs to avoid overlapping

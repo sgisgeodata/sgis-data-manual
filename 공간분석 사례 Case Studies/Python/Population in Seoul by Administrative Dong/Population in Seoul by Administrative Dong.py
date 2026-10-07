@@ -72,8 +72,8 @@ for idx, row in bord_sgg.iterrows():
 ax.get_legend().set_bbox_to_anchor((0.5, -0.05))  # Adjust legend position
 ax.get_legend().set_title('Population (Persons)')  # Set legend title
 ax.set_title('Population in Seoul by Administrative Dong', fontsize=24)  # Set map title
-ax.set_xtick([]) # Remove x-axis number and ticks
-ax.set_ytick([]) # Remove y-axis number and ticks
+ax.set_xticks([]) # Remove x-axis number and ticks
+ax.set_yticks([]) # Remove y-axis number and ticks
 
 # Layout adjustment and Display
 plt.tight_layout()  # Automatically adjusts the layout of graphs to avoid overlapping
