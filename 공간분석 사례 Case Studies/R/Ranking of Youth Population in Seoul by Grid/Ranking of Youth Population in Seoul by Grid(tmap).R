@@ -75,7 +75,7 @@ head(join)
 colnames(join)
 
 # Clean up unnecessary columns and fill in BASE_YEAR for the NULL values.
-join <- join %>% select(-BASE_DATE, -SIDO_CD, -SIDO_NM, -STAT_CODE)
+join <- join %>% select(-BASE_DATE, -SIDO_CD, -SIDO_NM)
 join$BASE_YEAR <- "2024"
 
 # Add a rank column
