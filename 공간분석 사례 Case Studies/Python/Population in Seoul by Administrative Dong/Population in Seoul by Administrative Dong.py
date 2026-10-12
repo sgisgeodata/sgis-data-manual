@@ -42,8 +42,8 @@ print(bord_sido.head())  # Preview merged data
 
 print(bord_sido['POP'].min(), bord_sido['POP'].max())  # Check the minimum, maximum values
 
-bins = [25, 10000, 20000, 30000, 40000, 53000]  # Specify appropriate intervals and labels
-labels = ['25~10,000', '10,000~20,000', '20,000~30,000', '30,000~40,000', '40,000~53,000']
+bins = [10, 10000, 20000, 30000, 40000, 52000]  # Specify appropriate intervals and labels
+labels = ['10~10,000', '10,000~20,000', '20,000~30,000', '30,000~40,000', '40,000~52,000']
 
 bord_sido['POP_BINS'] = pd.cut(bord_sido['POP'], bins=bins, labels=labels, right=False)
 print(bord_sido.head())  # Check the addition of the population interval('POP_BINS') column
